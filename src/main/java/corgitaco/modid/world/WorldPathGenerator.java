@@ -100,6 +100,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
     private final Map<ServerWorld, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>>> contextCacheForLevel = new Object2ObjectArrayMap<>();
     private final Map<ServerWorld, LongSet> completedRegionStructureCachesForLevel = new Object2ObjectArrayMap<>();
     private final Map<ServerWorld, LongSet> completedLinkedRegionsForLevel = new Object2ObjectArrayMap<>();
+    private final Map<ServerWorld, Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>>> surroundingRegionStructureCachesForRegionForLevel = new Object2ObjectArrayMap<>();
 
     @Override
     public boolean place(ISeedReader world, ChunkGenerator generator, Random random, BlockPos pos, NoFeatureConfig config) {
@@ -124,22 +125,31 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> structuresByRegion = contextCacheForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new Long2ReferenceOpenHashMap<>()));
         LongSet completedStructureCacheRegions = completedRegionStructureCachesForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new LongArraySet()));
         LongSet completedLinkedRegions = completedLinkedRegionsForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new LongArraySet()));
+        Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>> surroundingRegionStructureCachesForRegion = surroundingRegionStructureCachesForRegionForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new Long2ObjectArrayMap<>()));
 
         int range = 1;
 
-        Long2ObjectArrayMap<AdditionalStructureContext> surroundingRegionStructures = new Long2ObjectArrayMap<>();
 
-        for (int regionX = currentRegionX - range; regionX <= currentRegionX + range; regionX++) {
-            for (int regionZ = currentRegionZ - range; regionZ <= currentRegionZ + range; regionZ++) {
-                long regionKey = regionKey(regionX, regionZ);
+        // In cases such as buried treasure where there are 20k+ buried treasures in a given 3x3 region area,
+        // creating a new Long2ObjectArrayMap every chunk call & using a .putAll is very inefficient due to the number of entries.
+        // So we've cut down performance cost by making this cache get created by region not every single chunk call.
+        Long2ObjectArrayMap<AdditionalStructureContext> surroundingRegionStructures = surroundingRegionStructureCachesForRegion.computeIfAbsent(currentRegionKey, (key) -> {
+            Long2ObjectArrayMap<AdditionalStructureContext> computedSurroundingRegionStructures = new Long2ObjectArrayMap<>();
+            for (int regionX = currentRegionX - range; regionX <= currentRegionX + range; regionX++) {
+                for (int regionZ = currentRegionZ - range; regionZ <= currentRegionZ + range; regionZ++) {
+                    long regionKey = regionKey(regionX, regionZ);
 
-                if (!completedStructureCacheRegions.contains(regionKey)) {
-                    collectRegionStructures(seed, generator.getBiomeSource(), structure, structureSeparationSettings, structuresByRegion, regionX, regionZ);
-                    completedStructureCacheRegions.add(regionKey);
+                    if (!completedStructureCacheRegions.contains(regionKey)) {
+                        collectRegionStructures(seed, generator.getBiomeSource(), structure, structureSeparationSettings, structuresByRegion, regionX, regionZ);
+                        completedStructureCacheRegions.add(regionKey);
+                    }
+                    computedSurroundingRegionStructures.putAll(structuresByRegion.get(regionKey));
                 }
-                surroundingRegionStructures.putAll(structuresByRegion.get(regionKey));
             }
-        }
+            return computedSurroundingRegionStructures;
+        });
+
+        surroundingRegionStructureCachesForRegion.put(currentRegionKey, surroundingRegionStructures);
 
         Long2ObjectArrayMap<AdditionalStructureContext> currentRegionStructures = structuresByRegion.get(currentRegionKey);
 
