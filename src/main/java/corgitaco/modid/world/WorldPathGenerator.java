@@ -119,7 +119,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         int currentRegionZ = chunkToRegion(chunkZ);
         long currentRegionKey = regionKey(chunkToRegion(chunkX), chunkToRegion(chunkZ));
 
-        Structure<?> structure = Structure.BURIED_TREASURE;
+        Structure<?> structure = Structure.VILLAGE;
         StructureSeparationSettings structureSeparationSettings = generator.getSettings().structureConfig().get(structure);
 
         Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> structuresByRegion = contextCacheForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new Long2ReferenceOpenHashMap<>()));
@@ -148,8 +148,6 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
             }
             return computedSurroundingRegionStructures;
         });
-
-        surroundingRegionStructureCachesForRegion.put(currentRegionKey, surroundingRegionStructures);
 
         Long2ObjectArrayMap<AdditionalStructureContext> currentRegionStructures = structuresByRegion.get(currentRegionKey);
 
