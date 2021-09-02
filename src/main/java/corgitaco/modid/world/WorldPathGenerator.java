@@ -3,10 +3,10 @@ package corgitaco.modid.world;
 import com.mojang.serialization.Codec;
 import corgitaco.modid.mixin.access.StructureAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
-import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
+import it.unimi.dsi.fastutil.longs.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
+import net.minecraft.block.Blocks;
+import net.minecraft.util.Direction;
 import net.minecraft.util.SharedSeedRandom;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
@@ -15,6 +15,7 @@ import net.minecraft.world.ISeedReader;
 import net.minecraft.world.biome.BiomeManager;
 import net.minecraft.world.biome.provider.BiomeProvider;
 import net.minecraft.world.gen.ChunkGenerator;
+import net.minecraft.world.gen.Heightmap;
 import net.minecraft.world.gen.feature.Feature;
 import net.minecraft.world.gen.feature.NoFeatureConfig;
 import net.minecraft.world.gen.feature.structure.Structure;
@@ -26,6 +27,8 @@ import java.util.Random;
 import java.util.Set;
 
 public class WorldPathGenerator extends Feature<NoFeatureConfig> {
+
+    public static final boolean DEBUG = true;
 
     public static final String[] NAMES = new String[]{
             "Perthlochry",
@@ -94,7 +97,8 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         super(codec);
     }
 
-    private final Map<ServerWorld, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>>> contextCache = new Object2ObjectArrayMap<>();
+    private final Map<ServerWorld, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>>> contextCacheForLevel = new Object2ObjectArrayMap<>();
+    private final Map<ServerWorld, LongSet> completedRegionsForLevel = new Object2ObjectArrayMap<>();
 
     @Override
     public boolean place(ISeedReader world, ChunkGenerator generator, Random random, BlockPos pos, NoFeatureConfig config) {
@@ -103,18 +107,21 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         int minConnectionCount = 2;
         int maxConnectionCount = 5;
 
-        int chunkX = SectionPos.blockToSectionCoord(pos.getX());
-        int chunkZ = SectionPos.blockToSectionCoord(pos.getZ());
+        int x = pos.getX();
+        int chunkX = SectionPos.blockToSectionCoord(x);
+        int z = pos.getZ();
+        int chunkZ = SectionPos.blockToSectionCoord(z);
         long currentChunk = ChunkPos.asLong(chunkX, chunkZ);
 
         int currentRegionX = chunkToRegion(chunkX);
         int currentRegionZ = chunkToRegion(chunkZ);
-        long currentRegion = regionLong(chunkToRegion(chunkX), chunkToRegion(chunkZ));
+        long currentRegionKey = regionKey(chunkToRegion(chunkX), chunkToRegion(chunkZ));
 
         Structure<?> structure = Structure.VILLAGE;
         StructureSeparationSettings structureSeparationSettings = generator.getSettings().structureConfig().get(structure);
 
-        Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> structuresByRegion = contextCache.computeIfAbsent(world.getLevel(), (serverWorld -> new Long2ReferenceOpenHashMap<>()));
+        Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> structuresByRegion = contextCacheForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new Long2ReferenceOpenHashMap<>()));
+        LongSet completedRegions = completedRegionsForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new LongArraySet()));
 
         int range = 1;
 
@@ -122,17 +129,19 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
         for (int regionX = currentRegionX - range; regionX <= currentRegionX + range; regionX++) {
             for (int regionZ = currentRegionZ - range; regionZ <= currentRegionZ + range; regionZ++) {
-                long region = regionLong(regionX, regionZ);
+                long regionKey = regionKey(regionX, regionZ);
 
-                collectRegionStructures(seed, generator.getBiomeSource(), structure, structureSeparationSettings, structuresByRegion, regionX, regionZ);
-
-                surroundingRegionStructures.putAll(structuresByRegion.get(region));
+                if (!completedRegions.contains(regionKey)) {
+                    collectRegionStructures(seed, generator.getBiomeSource(), structure, structureSeparationSettings, structuresByRegion, regionX, regionZ);
+                    completedRegions.add(regionKey);
+                }
+                surroundingRegionStructures.putAll(structuresByRegion.get(regionKey));
             }
         }
 
         long[] currentAndSurroundingRegionStructurePositions = surroundingRegionStructures.keySet().toLongArray();
 
-        Long2ObjectArrayMap<AdditionalStructureContext> currentRegionStructures = structuresByRegion.get(currentRegion);
+        Long2ObjectArrayMap<AdditionalStructureContext> currentRegionStructures = structuresByRegion.get(currentRegionKey);
         for (Long2ObjectMap.Entry<AdditionalStructureContext> structureAdditionalContextEntry : currentRegionStructures.long2ObjectEntrySet()) {
             long structurePos = structureAdditionalContextEntry.getLongKey();
 
@@ -150,6 +159,16 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                 // Make these structures aware that they're connected each other.
                 targetStructureContext.getConnections().add(structurePos);
                 currentStructureContext.getConnections().add(target);
+            }
+        }
+
+        if (DEBUG) {
+            BlockPos.Mutable mutable = new BlockPos.Mutable().set(x, world.getHeight(Heightmap.Type.OCEAN_FLOOR_WG, x, z), z);
+            if (currentRegionStructures.containsKey(currentChunk)) {
+                for (int buildY = 0; buildY < 25; buildY++) {
+                    world.setBlock(mutable, Blocks.DIAMOND_BLOCK.defaultBlockState(), 2);
+                    mutable.move(Direction.UP);
+                }
             }
         }
 
@@ -188,9 +207,9 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
                 int structureChunkPosX = ChunkPos.getX(structureChunkPos);
                 int structureChunkPosZ = ChunkPos.getZ(structureChunkPos);
-                long structureRegionLong = regionLong(chunkToRegion(structureChunkPosX), chunkToRegion(structureChunkPosZ));
+                long structureRegionKey = regionKey(chunkToRegion(structureChunkPosX), chunkToRegion(structureChunkPosZ));
 
-                Long2ObjectArrayMap<AdditionalStructureContext> structureData = regionPositions.computeIfAbsent(structureRegionLong, (value) -> new Long2ObjectArrayMap<>());
+                Long2ObjectArrayMap<AdditionalStructureContext> structureData = regionPositions.computeIfAbsent(structureRegionKey, (value) -> new Long2ObjectArrayMap<>());
 
                 // Verify this biome is a valid biome for this structure
                 if (!sampleAndTestChunkBiomesForStructure(structureChunkPosX, structureChunkPosZ, biomeSource, village)) {
@@ -228,7 +247,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         return ChunkPos.asLong(floorDivX * spacing + x, floorDivZ * spacing + z);
     }
 
-    public static long regionLong(int regionX, int regionZ) {
+    public static long regionKey(int regionX, int regionZ) {
         return (long) regionX & 4294967295L | ((long) regionZ & 4294967295L) << 32;
     }
 
