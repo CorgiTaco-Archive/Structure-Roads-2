@@ -5,6 +5,9 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "modid.refmap.json",
   "mixins": [
+    "MixinMinecraftServer",
+    "access.BiomeGenerationSettingsAccess",
+    "access.StructureAccess"
   ],
   "client": [
   ],

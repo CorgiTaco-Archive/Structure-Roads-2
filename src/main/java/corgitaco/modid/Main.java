@@ -1,5 +1,9 @@
 package corgitaco.modid;
 
+import corgitaco.modid.util.BiomeUtils;
+import net.minecraft.world.gen.feature.Feature;
+import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.apache.logging.log4j.LogManager;
@@ -15,5 +19,14 @@ public class Main {
     public static final Path CONFIG_PATH = new File(String.valueOf(FMLPaths.CONFIGDIR.get().resolve(MOD_ID))).toPath();
 
     public Main() {
+    }
+
+
+    @Mod.EventBusSubscriber(modid = MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
+    public static class WorldGenRegistries {
+        @SubscribeEvent
+        public static void registerFeatures(RegistryEvent.Register<Feature<?>> event) {
+            BiomeUtils.FEATURES.forEach(feature -> event.getRegistry().register(feature));
+        }
     }
 }
