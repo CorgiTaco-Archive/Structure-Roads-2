@@ -141,7 +141,9 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
             AdditionalStructureContext currentStructureContext = structureAdditionalContextEntry.getValue();
             Set<Long> connections = currentStructureContext.getConnections();
-            while (connections.size() < structureRandom.nextInt((maxConnectionCount - minConnectionCount) + 1) + minConnectionCount) {
+
+            int connectionCount = structureRandom.nextInt((maxConnectionCount - minConnectionCount) + 1) + minConnectionCount;
+            while (connections.size() < connectionCount) {
                 long target = currentAndSurroundingRegionStructurePositions[structureRandom.nextInt(currentAndSurroundingRegionStructurePositions.length - 1)];
                 AdditionalStructureContext targetStructureContext = surroundingRegionStructures.get(target);
 
