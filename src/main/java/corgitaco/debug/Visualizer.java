@@ -14,7 +14,7 @@ import java.util.Random;
 public class Visualizer {
 
     public static void main(String[] args) {
-        long seed = 3293193833203L;
+        long seed = 3259395856863203L;
         Random random = new Random(seed);
         int range = 1000;
         BufferedImage img = new BufferedImage(range, range, BufferedImage.TYPE_INT_RGB);
@@ -37,17 +37,17 @@ public class Visualizer {
 
         List<BlockPos> pathNodes = new ArrayList<>();
 
-        int pointCount = 10;
+        int pointCount = 3;
 
-//        for (int point = 0; point <= pointCount - 1; point++) {
-//            double lerp = (double) (point) / pointCount;
-//            double nextLerp = (double) (point + 1) / pointCount;
-//            BlockPos initial = getLerpedBlockPos(startPos, endPos, lerp);
-//            BlockPos end = getLerpedBlockPos(startPos, endPos, nextLerp);
-//            pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, range, initial, end));
-//        }
+        for (int point = 0; point <= pointCount - 1; point++) {
+            double lerp = (double) (point) / pointCount;
+            double nextLerp = (double) (point + 1) / pointCount;
+            BlockPos initial = getLerpedBlockPos(startPos, endPos, lerp);
+            BlockPos end = getLerpedBlockPos(startPos, endPos, nextLerp);
+            pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, range, initial, end));
+        }
 
-       pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, range, startPos, endPos));
+//       pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, range, startPos, endPos));
 
         for (int x = 0; x < range; x++) {
             for (int z = 0; z < range; z++) {
@@ -76,7 +76,14 @@ public class Visualizer {
     }
 
     private static List<BlockPos> getRandomDraggedDeCastelJusAlgNodes(Random random, int range, BlockPos startPos, BlockPos endPos) {
-        return nodesDeCastelJusAlgList(startPos, endPos, getDragPos(random, range, startPos, endPos), getDragPos(random, range, startPos, endPos));
+        MutableBoundingBox pathBox = pathBox(startPos, endPos);
+        BlockPos drag1 = new BlockPos(startPos.getX() + random.nextInt(pathBox.getXSpan() - 1), 0, startPos.getZ() + random.nextInt(pathBox.getZSpan() - 1));
+        BlockPos drag2 = new BlockPos(startPos.getX() + random.nextInt(pathBox.getXSpan() - 1), 0, startPos.getZ() + random.nextInt(pathBox.getZSpan() - 1));
+
+        BlockPos randomDrag1 = getDragPos(random, range, startPos, endPos);
+        BlockPos randomDrag2 = getDragPos(random, range, startPos, endPos);
+
+        return nodesDeCastelJusAlgList(startPos, endPos, randomDrag1, randomDrag2);
     }
 
     private static BlockPos getRandomDeCastalBlockPos(Random random, int range, BlockPos startPos, BlockPos endPos, double v) {
@@ -123,28 +130,14 @@ public class Visualizer {
     }
 
 
-    private static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos, Random random, int min, int max) {
+    private static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos) {
         int startPosX = startPos.getX();
         int startPosZ = startPos.getZ();
 
         int endPosX = endPos.getX();
         int endPosZ = endPos.getZ();
 
-        boolean flipX = startPosX > endPosX;
-        boolean flipZ = startPosZ > endPosZ;
-        MutableBoundingBox structureBox = new MutableBoundingBox(flipX ? endPosX : startPosX, 0, flipZ ? endPosZ : startPosZ, flipX ? startPosX : endPosZ, 0, flipZ ? startPosZ : endPosZ);
-
-        MutableBoundingBox pathBox;
-
-        int bound = max - min + 1;
-        if (structureBox.getXSpan() > structureBox.getZSpan()) {
-            pathBox = new MutableBoundingBox(structureBox.x0 - random.nextInt(bound) - min, 0, structureBox.z0, structureBox.x1 + random.nextInt(bound) + min, 0, structureBox.z1);
-        } else if (structureBox.getZSpan() > structureBox.getXSpan()) {
-            pathBox = new MutableBoundingBox(structureBox.x0, 0, structureBox.z0 - random.nextInt(bound) - min, structureBox.x1, 0, structureBox.z1 + random.nextInt(bound) + min);
-        } else {
-            pathBox = structureBox;
-        }
-        return pathBox;
+        return new MutableBoundingBox(Math.min(startPosX, endPosX), 0, Math.min(startPosZ, endPosZ), Math.max(startPosX, endPosX), 0, Math.max(startPosZ, endPosZ));
     }
 
 
