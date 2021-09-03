@@ -14,9 +14,9 @@ import java.util.Random;
 public class Visualizer {
 
     public static void main(String[] args) {
-        long seed = 4398438958989458945L;
+        long seed = 3293193833203L;
         Random random = new Random(seed);
-        int range = 2500;
+        int range = 1000;
         BufferedImage img = new BufferedImage(range, range, BufferedImage.TYPE_INT_RGB);
         String pathname = "run\\yeet.png";
         File file = new File(pathname);
@@ -37,15 +37,17 @@ public class Visualizer {
 
         List<BlockPos> pathNodes = new ArrayList<>();
 
-        int pointCount = 3;
+        int pointCount = 10;
 
-        for (int point = 0; point <= pointCount - 1; point++) {
-            double lerp = (double) (point) / pointCount;
-            double nextLerp = (double) (point + 1) / pointCount;
-            BlockPos initial = getLerpedBlockPos(startPos, endPos, lerp);
-            BlockPos end = getLerpedBlockPos(startPos, endPos, nextLerp);
-            pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, initial, end));
-        }
+//        for (int point = 0; point <= pointCount - 1; point++) {
+//            double lerp = (double) (point) / pointCount;
+//            double nextLerp = (double) (point + 1) / pointCount;
+//            BlockPos initial = getLerpedBlockPos(startPos, endPos, lerp);
+//            BlockPos end = getLerpedBlockPos(startPos, endPos, nextLerp);
+//            pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, range, initial, end));
+//        }
+
+       pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, range, startPos, endPos));
 
         for (int x = 0; x < range; x++) {
             for (int z = 0; z < range; z++) {
@@ -73,8 +75,8 @@ public class Visualizer {
         }
     }
 
-    private static List<BlockPos> getRandomDraggedDeCastelJusAlgNodes(Random random, BlockPos startPos, BlockPos endPos) {
-        return nodesDeCastelJusAlgList(startPos, endPos, getDragPos(random, startPos, endPos), getDragPos(random, startPos, endPos));
+    private static List<BlockPos> getRandomDraggedDeCastelJusAlgNodes(Random random, int range, BlockPos startPos, BlockPos endPos) {
+        return nodesDeCastelJusAlgList(startPos, endPos, getDragPos(random, range, startPos, endPos), getDragPos(random, range, startPos, endPos));
     }
 
     private static BlockPos getRandomDeCastalBlockPos(Random random, int range, BlockPos startPos, BlockPos endPos, double v) {
@@ -116,16 +118,9 @@ public class Visualizer {
         return nodes;
     }
 
-    public static BlockPos getDragPos(Random random, BlockPos startPos, BlockPos endPos) {
-        MutableBoundingBox box = pathBox(startPos, endPos, random, 0, 0);
-        int xSpan = box.getXSpan();
-        int zSpan = box.getZSpan();
-        int randAddedX = random.nextInt(xSpan);
-        int randAddedZ = random.nextInt(zSpan);
-
-        return new BlockPos(startPos.getX() + randAddedX, 0, startPos.getZ() + randAddedZ);
+    public static BlockPos getDragPos(Random random, int range, BlockPos startPos, BlockPos endPos) {
+        return new BlockPos(random.nextInt(range - 25), 0, random.nextInt(range - 25));
     }
-
 
 
     private static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos, Random random, int min, int max) {
@@ -151,10 +146,6 @@ public class Visualizer {
         }
         return pathBox;
     }
-
-
-
-
 
 
     private static BlockPos deCastelJustAlgPos(BlockPos start, BlockPos end, BlockPos drag, BlockPos drag2, double lerp) {
