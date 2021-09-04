@@ -1,5 +1,6 @@
 package corgitaco.debug;
 
+import net.minecraft.util.Direction;
 import net.minecraft.util.math.*;
 
 import javax.imageio.ImageIO;
@@ -8,15 +9,18 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
 public class Visualizer {
 
     public static void main(String[] args) {
-        long seed = 3259395856863203L;
+        long seed = 778788778;
         Random random = new Random(seed);
         int range = 1000;
+        MutableBoundingBox image = new MutableBoundingBox(0, 0, 0, range - 1, 0, range - 1);
+
         BufferedImage img = new BufferedImage(range, range, BufferedImage.TYPE_INT_RGB);
         String pathname = "run\\yeet.png";
         File file = new File(pathname);
@@ -37,7 +41,7 @@ public class Visualizer {
 
         List<BlockPos> pathNodes = new ArrayList<>();
 
-        int pointCount = 3;
+        int pointCount = 7;
 
         for (int point = 0; point <= pointCount - 1; point++) {
             double lerp = (double) (point) / pointCount;
@@ -63,7 +67,9 @@ public class Visualizer {
         int rgb = new Color(24, 154, 25).getRGB();
 
         for (BlockPos node : pathNodes) {
-            img.setRGB(node.getX(), node.getZ(), rgb);
+            if (image.intersects(node.getX(), node.getZ(), node.getX(), node.getZ())) {
+                img.setRGB(node.getX(), node.getZ(), rgb);
+            }
         }
 
 
@@ -77,14 +83,39 @@ public class Visualizer {
 
     private static List<BlockPos> getRandomDraggedDeCastelJusAlgNodes(Random random, int range, BlockPos startPos, BlockPos endPos) {
         MutableBoundingBox pathBox = pathBox(startPos, endPos);
-        BlockPos drag1 = new BlockPos(startPos.getX() + random.nextInt(pathBox.getXSpan() - 1), 0, startPos.getZ() + random.nextInt(pathBox.getZSpan() - 1));
-        BlockPos drag2 = new BlockPos(startPos.getX() + random.nextInt(pathBox.getXSpan() - 1), 0, startPos.getZ() + random.nextInt(pathBox.getZSpan() - 1));
+
+        int minExpansion = 100;
+        int maxExpansion = 250;
+        BlockPos drag1 = new BlockPos(Math.min(startPos.getX(), endPos.getX()) + random.nextInt(pathBox.getXSpan() - 1) + getDragExpansion(pathBox, random, true, minExpansion, maxExpansion), 0, Math.min(startPos.getZ(), endPos.getZ()) + random.nextInt(pathBox.getZSpan() - 1) + getDragExpansion(pathBox, random, false, minExpansion, maxExpansion));
+        BlockPos drag2 = new BlockPos(Math.min(startPos.getX(), endPos.getX()) + random.nextInt(pathBox.getXSpan() - 1) + getDragExpansion(pathBox, random, true, minExpansion, maxExpansion), 0, Math.min(startPos.getZ(), endPos.getZ()) + random.nextInt(pathBox.getZSpan() - 1) + getDragExpansion(pathBox, random, false, minExpansion, maxExpansion));
 
         BlockPos randomDrag1 = getDragPos(random, range, startPos, endPos);
         BlockPos randomDrag2 = getDragPos(random, range, startPos, endPos);
 
-        return nodesDeCastelJusAlgList(startPos, endPos, randomDrag1, randomDrag2);
+        return nodesDeCastelJusAlgList(startPos, endPos, drag1, drag2);
     }
+
+
+    public static Direction[] availableDirections(MutableBoundingBox box) {
+        if (box.getXSpan() < box.getZSpan()) {
+            return new Direction[]{Direction.SOUTH, Direction.NORTH};
+        } else {
+            return new Direction[]{Direction.EAST, Direction.WEST};
+        }
+    }
+
+    public static int getDragExpansion(MutableBoundingBox pathBox, Random random, boolean isXAxis, int minExpansion, int maxExpansion) {
+        Direction[] directions = availableDirections(pathBox);
+
+        if (!isXAxis && Arrays.stream(directions).anyMatch(direction -> direction == Direction.SOUTH || direction == Direction.NORTH)) {
+            return random.nextInt(maxExpansion - minExpansion + 1) + minExpansion;
+        } else if (isXAxis && Arrays.stream(directions).anyMatch(direction -> direction == Direction.EAST || direction == Direction.WEST)){
+            return random.nextInt(maxExpansion - minExpansion + 1) + minExpansion;
+        } else {
+            return 0;
+        }
+    }
+
 
     private static BlockPos getRandomDeCastalBlockPos(Random random, int range, BlockPos startPos, BlockPos endPos, double v) {
         return deCastelJustAlgPos(startPos, endPos, new BlockPos(random.nextInt(range - 25), 0, random.nextInt(range - 25)), new BlockPos(random.nextInt(range - 25), 0, random.nextInt(range - 25)), v);
