@@ -2,6 +2,8 @@ package corgitaco.debug;
 
 import net.minecraft.util.Direction;
 import net.minecraft.util.math.*;
+import net.minecraft.util.math.vector.Vector2f;
+import org.lwjgl.system.CallbackI;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -14,10 +16,69 @@ import java.util.List;
 import java.util.Random;
 
 public class Visualizer {
+    static long startTime;
+
+    private static final double WINDINESS = 1; //How windy it is (Doesn't affect much if above PI)
+    private static final boolean SHOW_CONTROLS = false;
 
     public static void main(String[] args) {
-        long seed = 778788778;
-        Random random = new Random(seed);
+        startTime = System.currentTimeMillis();
+        smoothTest();
+        long endTime = System.currentTimeMillis();
+
+        //It seems ~1000ms is spent loading BlockPos
+        System.out.println("Completed in " + (endTime - startTime) + " ms");
+    }
+
+    private static class PointWithGradient{
+        private final BlockPos pos;
+        private final Vec2 gradient;
+
+        public PointWithGradient(BlockPos pos, Vec2 gradient){
+            this.pos = pos;
+            this.gradient = gradient;
+        }
+
+        public BlockPos getPos() {
+            return pos;
+        }
+
+        public Vec2 getGradient() {
+            return gradient;
+        }
+    }
+    private static class Vec2{
+        private final double x, y;
+
+        public Vec2(double x, double y){
+            this.x = x;
+            this.y = y;
+        }
+
+        public Vec2 mult(double n){
+            return new Vec2(x * n, y * n);
+        }
+
+        public BlockPos add(BlockPos pos){
+            return new BlockPos(pos.getX() + x, pos.getY(), pos.getZ() + y);
+        }
+
+        public BlockPos addBackwards(BlockPos pos){
+            return new BlockPos(pos.getX() - x, pos.getY(), pos.getZ() - y);
+        }
+
+        public double getX() {
+            return x;
+        }
+
+        public double getY() {
+            return y;
+        }
+    }
+
+    public static void smoothTest(){
+        Random random = new Random();
+
         int range = 1000;
         MutableBoundingBox image = new MutableBoundingBox(0, 0, 0, range - 1, 0, range - 1);
 
@@ -27,51 +88,92 @@ public class Visualizer {
         if (file.exists())
             file.delete();
 
-        BlockPos startPos = new BlockPos(random.nextInt(range - 25), 0, random.nextInt(range - 25));
-        int startX = SectionPos.blockToSectionCoord(startPos.getX());
-        int startZ = SectionPos.blockToSectionCoord(startPos.getZ());
-        long startStructurePos = ChunkPos.asLong(startX, startZ);
+        BlockPos startPos = new BlockPos(random.nextInt(range / 2), 0, random.nextInt(range / 2));
+        BlockPos endPos = new BlockPos(random.nextInt(range / 2) + range / 2, 0, random.nextInt(range / 2) + range / 2);
 
-        BlockPos endPos = new BlockPos(random.nextInt(range - 25), 0, random.nextInt(range - 25));
-
-        int endX = SectionPos.blockToSectionCoord(endPos.getX());
-        int endZ = SectionPos.blockToSectionCoord(endPos.getZ());
-        long endStructurePos = ChunkPos.asLong(endX, endZ);
-
-
-        List<BlockPos> pathNodes = new ArrayList<>();
-
+        List<PointWithGradient> points = new ArrayList<>();
         int pointCount = 7;
+        double angle = Math.atan2(endPos.getZ() - startPos.getZ(), endPos.getX() - startPos.getX());
+        double dist = Math.sqrt(
+                (startPos.getX() - endPos.getX()) * (startPos.getX() - endPos.getX()) +
+                (startPos.getZ() - endPos.getZ()) * (startPos.getZ() - endPos.getZ())
+        );
+        double scale = 0.5 * dist / pointCount;
 
-        for (int point = 0; point <= pointCount - 1; point++) {
-            double lerp = (double) (point) / pointCount;
-            double nextLerp = (double) (point + 1) / pointCount;
-            BlockPos initial = getLerpedBlockPos(startPos, endPos, lerp);
-            BlockPos end = getLerpedBlockPos(startPos, endPos, nextLerp);
-            pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, range, initial, end));
-        }
+        System.out.println("Start: " + startPos);
+        System.out.println("End: " + endPos);
+        System.out.println("Length: " + dist);
+        System.out.println("Scale: " + scale);
 
-//       pathNodes.addAll(getRandomDraggedDeCastelJusAlgNodes(random, range, startPos, endPos));
+        for(int point = 0; point < pointCount; point++){
+            double t = (double) (point) / (pointCount - 1);
+            BlockPos pos = getLerpedBlockPos(startPos, endPos, t);
 
-        for (int x = 0; x < range; x++) {
-            for (int z = 0; z < range; z++) {
-                int pixelSize = 1;
-                for (int pixelXSize = -pixelSize; pixelXSize <= pixelSize; pixelXSize++) {
-                    for (int pixelZSize = -pixelSize; pixelZSize <= pixelSize; pixelZSize++) {
-                        img.setRGB(MathHelper.clamp(x + pixelXSize, 0, range - 1), MathHelper.clamp(z + pixelZSize, 0, range - 1), getColor(x, z, startX, startZ, endX, endZ));
-                    }
+            if(point != 0 || point != pointCount - 1) {
+                double shiftAngle = random.nextDouble() * Math.PI * 2;
+                double shiftLength = dist * 0.25 / pointCount;
+
+                pos = pos.east((int) (Math.cos(shiftAngle) * shiftLength)).south((int) (Math.sin(shiftAngle) * shiftLength));
+
+                if(pos.getX() < 0){
+                    //For some reason there's no setX()
+                    pos = pos.east(-pos.getX());
+                }else if(pos.getX() >= range){
+                    pos = pos.west(pos.getX() - range + 1);
+                }
+
+                if(pos.getZ() < 0){
+                    pos = pos.south(-pos.getZ());
+                }else if(pos.getZ() >= range){
+                    pos = pos.north(pos.getZ() - range + 1);
                 }
             }
+
+            double angleAtPoint = angle + (random.nextDouble() * 2 - 1) * WINDINESS;
+            Vec2 normalizedVector = new Vec2(Math.cos(angleAtPoint), Math.sin(angleAtPoint));
+            double length = (random.nextDouble() + 1) * scale;
+
+            points.add(new PointWithGradient(pos, normalizedVector.mult(length)));
         }
 
         int rgb = new Color(24, 154, 25).getRGB();
 
-        for (BlockPos node : pathNodes) {
-            if (image.intersects(node.getX(), node.getZ(), node.getX(), node.getZ())) {
-                img.setRGB(node.getX(), node.getZ(), rgb);
+        for(int i = 0; i < pointCount - 1; i++){
+            for(BlockPos pos : getBezierPoints(points.get(i), points.get(i + 1))){
+                if(pos.getX() < 0 || pos.getZ() < 0 || pos.getX() >= range || pos.getZ() >= range)
+                    continue;
+                img.setRGB(pos.getX(), pos.getZ(), rgb);
             }
         }
 
+        int pointColor = new Color(186, 55, 13).getRGB();
+        int controlColor = new Color(197, 32, 76).getRGB();
+
+        for(PointWithGradient point : points){
+            //Draw points and control points
+            int X = point.getPos().getX();
+            int Z = point.getPos().getZ();
+
+            drawSquare(3, X, Z, img, pointColor);
+
+            if(SHOW_CONTROLS) {
+                BlockPos controlOne = point.getGradient().add(point.getPos());
+                BlockPos controlTwo = point.getGradient().addBackwards(point.getPos());
+
+                drawSquare(2, controlOne.getX(), controlOne.getZ(), img, controlColor);
+                drawSquare(2, controlTwo.getX(), controlTwo.getZ(), img, controlColor);
+
+                int maxDiff = Math.max(Math.abs(controlOne.getX() - controlTwo.getX()), Math.abs(controlOne.getZ() - controlTwo.getZ())) + 1;
+                double step = 1 / (double) maxDiff;
+
+                for (double t = 0; t <= 1; t += step) {
+                    BlockPos pos = getLerpedBlockPos(controlOne, controlTwo, t);
+                    if (pos.getX() < 0 || pos.getZ() < 0 || pos.getX() >= range || pos.getZ() >= range)
+                        continue;
+                    img.setRGB(pos.getX(), pos.getZ(), controlColor);
+                }
+            }
+        }
 
         try {
             file = new File(pathname);
@@ -81,96 +183,30 @@ public class Visualizer {
         }
     }
 
-    private static List<BlockPos> getRandomDraggedDeCastelJusAlgNodes(Random random, int range, BlockPos startPos, BlockPos endPos) {
-        MutableBoundingBox pathBox = pathBox(startPos, endPos);
-
-        int minExpansion = 100;
-        int maxExpansion = 250;
-        BlockPos drag1 = new BlockPos(Math.min(startPos.getX(), endPos.getX()) + random.nextInt(pathBox.getXSpan() - 1) + getDragExpansion(pathBox, random, true, minExpansion, maxExpansion), 0, Math.min(startPos.getZ(), endPos.getZ()) + random.nextInt(pathBox.getZSpan() - 1) + getDragExpansion(pathBox, random, false, minExpansion, maxExpansion));
-        BlockPos drag2 = new BlockPos(Math.min(startPos.getX(), endPos.getX()) + random.nextInt(pathBox.getXSpan() - 1) + getDragExpansion(pathBox, random, true, minExpansion, maxExpansion), 0, Math.min(startPos.getZ(), endPos.getZ()) + random.nextInt(pathBox.getZSpan() - 1) + getDragExpansion(pathBox, random, false, minExpansion, maxExpansion));
-
-        BlockPos randomDrag1 = getDragPos(random, range, startPos, endPos);
-        BlockPos randomDrag2 = getDragPos(random, range, startPos, endPos);
-
-        return nodesDeCastelJusAlgList(startPos, endPos, drag1, drag2);
-    }
-
-
-    public static Direction[] availableDirections(MutableBoundingBox box) {
-        if (box.getXSpan() < box.getZSpan()) {
-            return new Direction[]{Direction.SOUTH, Direction.NORTH};
-        } else {
-            return new Direction[]{Direction.EAST, Direction.WEST};
+    private static void drawSquare(int halfWidth, int X, int Z, BufferedImage img, int color){
+        for(int x = Math.max(0, X - 3); x < Math.min(img.getWidth() - 1, X + 3); x++){
+            for(int z = Math.max(0, Z - 3); z < Math.min(img.getHeight() - 1, Z + 3); z++) {
+                img.setRGB(x, z, color);
+            }
         }
     }
 
-    public static int getDragExpansion(MutableBoundingBox pathBox, Random random, boolean isXAxis, int minExpansion, int maxExpansion) {
-        Direction[] directions = availableDirections(pathBox);
+    private static List<BlockPos> getBezierPoints(PointWithGradient start, PointWithGradient end){
+        BlockPos controlOne = start.getGradient().add(start.getPos());
+        BlockPos controlTwo = end.getGradient().addBackwards(end.getPos());
 
-        if (!isXAxis && Arrays.stream(directions).anyMatch(direction -> direction == Direction.SOUTH || direction == Direction.NORTH)) {
-            return random.nextInt(maxExpansion - minExpansion + 1) + minExpansion;
-        } else if (isXAxis && Arrays.stream(directions).anyMatch(direction -> direction == Direction.EAST || direction == Direction.WEST)){
-            return random.nextInt(maxExpansion - minExpansion + 1) + minExpansion;
-        } else {
-            return 0;
+        List<BlockPos> points = new ArrayList<>();
+
+        for(double t = 0; t <= 1; t += 0.001){
+            points.add(deCastelJustAlgPos(start.getPos(), end.getPos(), controlOne, controlTwo, t));
         }
-    }
 
-
-    private static BlockPos getRandomDeCastalBlockPos(Random random, int range, BlockPos startPos, BlockPos endPos, double v) {
-        return deCastelJustAlgPos(startPos, endPos, new BlockPos(random.nextInt(range - 25), 0, random.nextInt(range - 25)), new BlockPos(random.nextInt(range - 25), 0, random.nextInt(range - 25)), v);
-    }
-
-    public static int getColor(int x, int z, int startX, int startZ, int endX, int endZ) {
-        if (SectionPos.blockToSectionCoord(x) == startX && SectionPos.blockToSectionCoord(z) == startZ) {
-            return new Color(0, 0, 255).getRGB();
-        } else if (SectionPos.blockToSectionCoord(x) == endX && SectionPos.blockToSectionCoord(z) == endZ) {
-            return new Color(0, 255, 255).getRGB();
-        } else {
-            return 0;
-        }
-    }
-
-    public static List<BlockPos> nodesLerp(BlockPos start, BlockPos end) {
-        ArrayList<BlockPos> nodes = new ArrayList<>();
-
-        for (double lerp = 0; lerp < 1.0; lerp += 0.001) {
-            nodes.add(getLerpedBlockPos(start, end, lerp));
-        }
-        return nodes;
+        return points;
     }
 
     private static BlockPos getLerpedBlockPos(BlockPos start, BlockPos end, double lerp) {
         return new BlockPos(MathHelper.lerp(lerp, start.getX(), end.getX()), 0, MathHelper.lerp(lerp, start.getZ(), end.getZ()));
     }
-
-    public static List<BlockPos> nodesDeCastelJusAlgList(BlockPos start, BlockPos end, BlockPos drag, BlockPos drag2) {
-        ArrayList<BlockPos> nodes = new ArrayList<>();
-
-        for (double lerp = 0; lerp < 1.0; lerp += 0.001) {
-            BlockPos result = deCastelJustAlgPos(start, end, drag, drag2, lerp);
-            nodes.add(result);
-
-        }
-
-        return nodes;
-    }
-
-    public static BlockPos getDragPos(Random random, int range, BlockPos startPos, BlockPos endPos) {
-        return new BlockPos(random.nextInt(range - 25), 0, random.nextInt(range - 25));
-    }
-
-
-    private static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos) {
-        int startPosX = startPos.getX();
-        int startPosZ = startPos.getZ();
-
-        int endPosX = endPos.getX();
-        int endPosZ = endPos.getZ();
-
-        return new MutableBoundingBox(Math.min(startPosX, endPosX), 0, Math.min(startPosZ, endPosZ), Math.max(startPosX, endPosX), 0, Math.max(startPosZ, endPosZ));
-    }
-
 
     private static BlockPos deCastelJustAlgPos(BlockPos start, BlockPos end, BlockPos drag, BlockPos drag2, double lerp) {
         double draggedStartX = MathHelper.lerp(lerp, start.getX(), drag.getX());
