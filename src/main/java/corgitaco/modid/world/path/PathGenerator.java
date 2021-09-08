@@ -63,11 +63,7 @@ public class PathGenerator {
 
             pos = stayInBox(random, point, pointCount, dist, pos, pathBox);
 
-            double angleAtPoint = angle + (random.nextDouble() * 2 - 1) * windiness;
-            Vec2 normalizedVector = new Vec2(Math.cos(angleAtPoint), Math.sin(angleAtPoint));
-            double length = (random.nextDouble() + 1) * scale;
-
-            points.add(new PointWithGradient(pos, normalizedVector.mult(length)));
+            points.add(new PointWithGradient(pos, getRandomGradient(random, angle, scale, windiness)));
 
 
         }
@@ -81,9 +77,16 @@ public class PathGenerator {
         return points;
     }
 
+    private static Vec2 getRandomGradient(Random random, double angle, double scale, double windiness) {
+        double angleAtPoint = angle + (random.nextDouble() * 2 - 1) * windiness;
+        Vec2 normalizedVector = new Vec2(Math.cos(angleAtPoint), Math.sin(angleAtPoint));
+        double length = (random.nextDouble() + 1) * scale;
+        return normalizedVector.mult(length);
+    }
+
     private static BlockPos stayInBox(Random random, int point, int pointCount, double dist, BlockPos pos, MutableBoundingBox box) {
         double shiftAngle = random.nextDouble() * Math.PI * 2;
-        if(point != 0 || point != pointCount - 1) {
+        if (point != 0 && point != pointCount - 1) {
             double shiftLength = dist * 0.25 / pointCount;
 
 
