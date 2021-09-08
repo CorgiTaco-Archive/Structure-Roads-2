@@ -18,6 +18,7 @@ import net.minecraft.world.biome.BiomeManager;
 import net.minecraft.world.biome.provider.BiomeProvider;
 import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.Heightmap;
+import net.minecraft.world.gen.blockstateprovider.WeightedBlockStateProvider;
 import net.minecraft.world.gen.feature.Feature;
 import net.minecraft.world.gen.feature.NoFeatureConfig;
 import net.minecraft.world.gen.feature.structure.Structure;
@@ -28,7 +29,7 @@ import java.util.*;
 
 public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
-    public static final boolean DEBUG = true;
+    public static final boolean DEBUG = false;
 
     public static final String[] NAMES = new String[]{
             "Perthlochry",
@@ -107,8 +108,9 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
     public boolean place(ISeedReader world, ChunkGenerator generator, Random random, BlockPos pos, NoFeatureConfig config) {
         long seed = world.getSeed();
 
-        int minConnectionCount = 2;
-        int maxConnectionCount = 5;
+        int minConnectionCount = 1;
+        int maxConnectionCount = 2;
+        WeightedBlockStateProvider stateProvider = new WeightedBlockStateProvider().add(Blocks.GRASS_PATH.defaultBlockState(), 5).add(Blocks.COARSE_DIRT.defaultBlockState(), 2);
 
         int x = pos.getX();
         int chunkX = SectionPos.blockToSectionCoord(x);
@@ -162,18 +164,30 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
             if (currentRegionStructures.containsKey(currentChunk)) {
                 buildMarker(world, x, z, Blocks.EMERALD_BLOCK.defaultBlockState());
             }
+        }
 
-            List<PathGenerator> pathGenerators = pathGeneratorsForRegion.get(currentRegionKey);
+        List<PathGenerator> pathGenerators = pathGeneratorsForRegion.get(currentRegionKey);
 
-            for (PathGenerator pathGenerator : pathGenerators) {
-                Long2ObjectArrayMap<List<BlockPos>> chunkNodes = pathGenerator.getNodesByChunk();
-                if (pathGenerator.intersects(pos) && chunkNodes.containsKey(currentChunk)) {
-                    for (BlockPos blockPos : chunkNodes.get(currentChunk)) {
+        for (PathGenerator pathGenerator : pathGenerators) {
+            Long2ObjectArrayMap<List<BlockPos>> chunkNodes = pathGenerator.getNodesByChunk();
+            if (pathGenerator.intersects(pos) && chunkNodes.containsKey(currentChunk)) {
+                for (BlockPos blockPos : chunkNodes.get(currentChunk)) {
+                    if (DEBUG) {
                         buildMarker(world, blockPos.getX(), blockPos.getZ(), pathGenerator.debugState());
                     }
+
+                    int size = 3;
+                    BlockPos.Mutable mutable = new BlockPos.Mutable();
+                    for (int xMove = -size; xMove < size; xMove++) {
+                        for (int zMove = -size; zMove < size; zMove++) {
+                            BlockPos.Mutable movedMutable = mutable.setWithOffset(blockPos, xMove, 0, zMove);
+                            movedMutable.setY(world.getHeight(Heightmap.Type.WORLD_SURFACE_WG, movedMutable.getX(), movedMutable.getZ()) - 1);
+                            world.setBlock(movedMutable, stateProvider.getState(random, movedMutable), 2);
+                        }
+                    }
+
                 }
             }
-
         }
 
         return true;
@@ -209,7 +223,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
                     BlockPos startPos = new BlockPos(SectionPos.sectionToBlockCoord(ChunkPos.getX(currentStructurePos)), 0, SectionPos.sectionToBlockCoord(ChunkPos.getZ(currentStructurePos)));
                     BlockPos endPos = new BlockPos(SectionPos.sectionToBlockCoord(ChunkPos.getX(target)), 0, SectionPos.sectionToBlockCoord(ChunkPos.getZ(target)));
-                    PathGenerator pathGenerator = new PathGenerator(startPos, endPos, structureRandom, 5, 2);
+                    PathGenerator pathGenerator = new PathGenerator(startPos, endPos, structureRandom, structureRandom.nextInt(7) + 2, (structureRandom.nextDouble() * (Math.PI * 2)) - Math.PI);
 
                     pathGenerators.computeIfAbsent(chunkToRegion(currentStructurePos), (key) -> new ArrayList<>()).add(pathGenerator);
                     pathGenerators.computeIfAbsent(chunkToRegion(target), (key) -> new ArrayList<>()).add(pathGenerator);

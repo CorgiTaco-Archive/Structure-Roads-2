@@ -18,7 +18,7 @@ public class PathGenerator {
     private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
     private final BlockState debugState;
 
-    public PathGenerator(BlockPos startPos, BlockPos endPos, Random random, int pointCount, int windiness) {
+    public PathGenerator(BlockPos startPos, BlockPos endPos, Random random, int pointCount, double windiness) {
         this.pathBox = pathBox(startPos, endPos);
         points = getPointWithGradients(random, startPos, endPos, pathBox, pointCount, windiness);
 
