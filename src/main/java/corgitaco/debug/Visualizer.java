@@ -45,6 +45,9 @@ public class Visualizer {
 
         MutableBoundingBox pathBox = pathBox(startPos, endPos);
 
+        drawSquare(startPos.getX(), startPos.getZ(), img, new Color(0, 100, 0).getRGB(), 10);
+        drawSquare(endPos.getX(), endPos.getZ(), img, new Color(0, 100, 0).getRGB(), 10);
+
 
         int pointCount = 25;
         List<PointWithGradient> points = getPointWithGradients(random, startPos, endPos, pathBox, pointCount, WINDINESS);

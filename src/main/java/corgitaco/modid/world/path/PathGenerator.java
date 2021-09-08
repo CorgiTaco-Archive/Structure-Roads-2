@@ -61,7 +61,7 @@ public class PathGenerator {
             double t = (double) (point) / (pointCount - 1);
             BlockPos pos = getLerpedBlockPos(startPos, endPos, t);
 
-            pos = stayInBox(random, pointCount, dist, pos, pathBox);
+            pos = stayInBox(random, point, pointCount, dist, pos, pathBox);
 
             double angleAtPoint = angle + (random.nextDouble() * 2 - 1) * windiness;
             Vec2 normalizedVector = new Vec2(Math.cos(angleAtPoint), Math.sin(angleAtPoint));
@@ -81,24 +81,26 @@ public class PathGenerator {
         return points;
     }
 
-    private static BlockPos stayInBox(Random random, int pointCount, double dist, BlockPos pos, MutableBoundingBox box) {
+    private static BlockPos stayInBox(Random random, int point, int pointCount, double dist, BlockPos pos, MutableBoundingBox box) {
         double shiftAngle = random.nextDouble() * Math.PI * 2;
-        double shiftLength = dist * 0.25 / pointCount;
+        if(point != 0 || point != pointCount - 1) {
+            double shiftLength = dist * 0.25 / pointCount;
 
 
-        pos = pos.east((int) (Math.cos(shiftAngle) * shiftLength)).south((int) (Math.sin(shiftAngle) * shiftLength));
+            pos = pos.east((int) (Math.cos(shiftAngle) * shiftLength)).south((int) (Math.sin(shiftAngle) * shiftLength));
 
-        if (pos.getX() < box.x0) {
-            //For some reason there's no setX()
-            pos = pos.east(-pos.getX());
-        } else if (pos.getX() >= box.x1) {
-            pos = pos.west(pos.getX() - box.x1 + 1);
-        }
+            if (pos.getX() < box.x0) {
+                //For some reason there's no setX()
+                pos = pos.east(-pos.getX());
+            } else if (pos.getX() >= box.x1) {
+                pos = pos.west(pos.getX() - box.x1 + 1);
+            }
 
-        if (pos.getZ() < box.z0) {
-            pos = pos.south(-pos.getZ());
-        } else if (pos.getZ() >= box.z1) {
-            pos = pos.north(pos.getZ() - box.z1 + 1);
+            if (pos.getZ() < box.z0) {
+                pos = pos.south(-pos.getZ());
+            } else if (pos.getZ() >= box.z1) {
+                pos = pos.north(pos.getZ() - box.z1 + 1);
+            }
         }
         return pos;
     }
