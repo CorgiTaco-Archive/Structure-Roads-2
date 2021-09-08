@@ -3,8 +3,10 @@ package corgitaco.modid.world;
 import com.mojang.serialization.Codec;
 import corgitaco.modid.mixin.access.StructureAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
+import corgitaco.modid.world.path.PathGenerator;
 import it.unimi.dsi.fastutil.longs.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.Direction;
 import net.minecraft.util.SharedSeedRandom;
@@ -22,9 +24,7 @@ import net.minecraft.world.gen.feature.structure.Structure;
 import net.minecraft.world.gen.settings.StructureSeparationSettings;
 import net.minecraft.world.server.ServerWorld;
 
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 
 public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
@@ -101,6 +101,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
     private final Map<ServerWorld, LongSet> completedRegionStructureCachesForLevel = new Object2ObjectArrayMap<>();
     private final Map<ServerWorld, LongSet> completedLinkedRegionsForLevel = new Object2ObjectArrayMap<>();
     private final Map<ServerWorld, Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>>> surroundingRegionStructureCachesForRegionForLevel = new Object2ObjectArrayMap<>();
+    private final Map<ServerWorld, Long2ObjectArrayMap<List<PathGenerator>>> pathGenerators = new Object2ObjectArrayMap<>();
 
     @Override
     public boolean place(ISeedReader world, ChunkGenerator generator, Random random, BlockPos pos, NoFeatureConfig config) {
@@ -126,6 +127,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         LongSet completedStructureCacheRegions = completedRegionStructureCachesForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new LongArraySet()));
         LongSet completedLinkedRegions = completedLinkedRegionsForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new LongArraySet()));
         Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>> surroundingRegionStructureCachesForRegion = surroundingRegionStructureCachesForRegionForLevel.computeIfAbsent(world.getLevel(), (serverWorld -> new Long2ObjectArrayMap<>()));
+        Long2ObjectArrayMap<List<PathGenerator>> pathGeneratorsForRegion = pathGenerators.computeIfAbsent(world.getLevel(), (serverWorld -> new Long2ObjectArrayMap<>()));
 
         int range = 1;
 
@@ -152,31 +154,47 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         Long2ObjectArrayMap<AdditionalStructureContext> currentRegionStructures = structuresByRegion.get(currentRegionKey);
 
         if (!completedLinkedRegions.contains(currentRegionKey)) {
-            linkStructures(seed, minConnectionCount, maxConnectionCount, structureSeparationSettings, surroundingRegionStructures, currentRegionStructures);
+            linkStructures(seed, minConnectionCount, maxConnectionCount, structureSeparationSettings, surroundingRegionStructures, currentRegionStructures, pathGeneratorsForRegion);
             completedLinkedRegions.add(currentRegionKey);
         }
 
         if (DEBUG) {
             if (currentRegionStructures.containsKey(currentChunk)) {
-                BlockPos.Mutable mutable = new BlockPos.Mutable().set(x, world.getHeight(Heightmap.Type.OCEAN_FLOOR_WG, x, z), z);
-                for (int buildY = 0; buildY < 25; buildY++) {
-                    world.setBlock(mutable, Blocks.DIAMOND_BLOCK.defaultBlockState(), 2);
-                    mutable.move(Direction.UP);
+                buildMarker(world, x, z, Blocks.EMERALD_BLOCK.defaultBlockState());
+            }
+
+            List<PathGenerator> pathGenerators = pathGeneratorsForRegion.get(currentRegionKey);
+
+            for (PathGenerator pathGenerator : pathGenerators) {
+                Long2ObjectArrayMap<List<BlockPos>> chunkNodes = pathGenerator.getNodesByChunk();
+                if (pathGenerator.intersects(pos) && chunkNodes.containsKey(currentChunk)) {
+                    for (BlockPos blockPos : chunkNodes.get(currentChunk)) {
+                        buildMarker(world, blockPos.getX(), blockPos.getZ(), pathGenerator.debugState());
+                    }
                 }
             }
+
         }
 
         return true;
     }
 
-    private void linkStructures(long seed, int minConnectionCount, int maxConnectionCount, StructureSeparationSettings structureSeparationSettings, Long2ObjectArrayMap<AdditionalStructureContext> surroundingRegionStructures, Long2ObjectArrayMap<AdditionalStructureContext> currentRegionStructures) {
+    private void buildMarker(ISeedReader world, int x, int z, BlockState state) {
+        BlockPos.Mutable mutable = new BlockPos.Mutable().set(x, world.getHeight(Heightmap.Type.WORLD_SURFACE_WG, x, z), z);
+        for (int buildY = 0; buildY < 25; buildY++) {
+            world.setBlock(mutable, state, 2);
+            mutable.move(Direction.UP);
+        }
+    }
+
+    private void linkStructures(long seed, int minConnectionCount, int maxConnectionCount, StructureSeparationSettings structureSeparationSettings, Long2ObjectArrayMap<AdditionalStructureContext> surroundingRegionStructures, Long2ObjectArrayMap<AdditionalStructureContext> currentRegionStructures, Long2ObjectArrayMap<List<PathGenerator>> pathGenerators) {
         long[] currentAndSurroundingRegionStructurePositions = surroundingRegionStructures.keySet().toLongArray();
 
         for (Long2ObjectMap.Entry<AdditionalStructureContext> structureAdditionalContextEntry : currentRegionStructures.long2ObjectEntrySet()) {
-            long structurePos = structureAdditionalContextEntry.getLongKey();
+            long currentStructurePos = structureAdditionalContextEntry.getLongKey();
 
             SharedSeedRandom structureRandom = new SharedSeedRandom();
-            structureRandom.setLargeFeatureWithSalt(seed, ChunkPos.getX(structurePos), ChunkPos.getZ(structurePos), structureSeparationSettings.salt());
+            structureRandom.setLargeFeatureWithSalt(seed, ChunkPos.getX(currentStructurePos), ChunkPos.getZ(currentStructurePos), structureSeparationSettings.salt());
 
             AdditionalStructureContext currentStructureContext = structureAdditionalContextEntry.getValue();
             Set<Long> connections = currentStructureContext.getConnections();
@@ -187,7 +205,17 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                 AdditionalStructureContext targetStructureContext = surroundingRegionStructures.get(target);
 
                 // Make these structures aware that they're connected each other.
-                targetStructureContext.getConnections().add(structurePos);
+                if (!targetStructureContext.getConnections().contains(currentStructurePos) && !currentStructureContext.getConnections().contains(target) && target != currentStructurePos) {
+
+                    BlockPos startPos = new BlockPos(SectionPos.sectionToBlockCoord(ChunkPos.getX(currentStructurePos)), 0, SectionPos.sectionToBlockCoord(ChunkPos.getZ(currentStructurePos)));
+                    BlockPos endPos = new BlockPos(SectionPos.sectionToBlockCoord(ChunkPos.getX(target)), 0, SectionPos.sectionToBlockCoord(ChunkPos.getZ(target)));
+                    PathGenerator pathGenerator = new PathGenerator(startPos, endPos, structureRandom, 5, 2);
+
+                    pathGenerators.computeIfAbsent(chunkToRegion(currentStructurePos), (key) -> new ArrayList<>()).add(pathGenerator);
+                    pathGenerators.computeIfAbsent(chunkToRegion(target), (key) -> new ArrayList<>()).add(pathGenerator);
+                }
+
+                targetStructureContext.getConnections().add(currentStructurePos);
                 currentStructureContext.getConnections().add(target);
             }
         }
@@ -288,5 +316,9 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
     public static int regionToMaxChunk(int coord) {
         return regionToChunk(coord + 1) - 1;
+    }
+
+    public static long chunkToRegion(long chunk) {
+        return regionKey(chunkToRegion(ChunkPos.getX(chunk)), chunkToRegion(ChunkPos.getZ(chunk)));
     }
 }
