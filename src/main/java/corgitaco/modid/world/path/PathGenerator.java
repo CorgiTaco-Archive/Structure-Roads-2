@@ -16,15 +16,20 @@ public class PathGenerator {
     private final MutableBoundingBox pathBox;
     private final List<PointWithGradient> points;
     private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
+    private final Long2ObjectArrayMap<List<BlockPos>> lightsByChunk = new Long2ObjectArrayMap<>();
     private final BlockState debugState;
 
-    public PathGenerator(BlockPos startPos, BlockPos endPos, Random random, int pointCount, double windiness) {
+    public PathGenerator(BlockPos startPos, BlockPos endPos, long startStructureChunk, long endStructureChunk, Random random, int pointCount, double windiness) {
         this.pathBox = pathBox(startPos, endPos);
         points = getPointWithGradients(random, startPos, endPos, pathBox, pointCount, windiness);
 
         for (int idx = 0; idx < points.size() - 1; idx++) {
-            for (BlockPos pos : getBezierPoints(points.get(idx), points.get(idx + 1))) {
+            for (BlockPos pos : getBezierPoints(points.get(idx), points.get(idx + 1), 0.001)) {
                 nodesByChunk.computeIfAbsent(ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())), (key) -> new ArrayList<>()).add(pos);
+            }
+
+            for (BlockPos pos : getBezierPoints(points.get(idx), points.get(idx + 1), 0.004)) {
+                lightsByChunk.computeIfAbsent(ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())), (key) -> new ArrayList<>()).add(pos);
             }
         }
 
@@ -45,6 +50,10 @@ public class PathGenerator {
 
     public BlockState debugState() {
         return debugState;
+    }
+
+    public Long2ObjectArrayMap<List<BlockPos>> getLightsByChunk() {
+        return lightsByChunk;
     }
 
     public static List<PointWithGradient> getPointWithGradients(Random random, BlockPos startPos, BlockPos endPos, MutableBoundingBox pathBox, int pointCount, double windiness) {
@@ -127,7 +136,7 @@ public class PathGenerator {
         return new BlockPos(MathHelper.lerp(lerp, start.getX(), end.getX()), 0, MathHelper.lerp(lerp, start.getZ(), end.getZ()));
     }
 
-    public static List<BlockPos> getBezierPoints(PointWithGradient start, PointWithGradient end) {
+    public static List<BlockPos> getBezierPoints(PointWithGradient start, PointWithGradient end, double lerpIncrement) {
         BlockPos startPos = start.getPos();
         BlockPos endPos = end.getPos();
 
@@ -136,7 +145,7 @@ public class PathGenerator {
 
         List<BlockPos> points = new ArrayList<>();
 
-        for (double t = 0; t <= 1; t += 0.001) {
+        for (double t = 0; t <= 1; t += lerpIncrement) {
             points.add(deCastelJustAlgPos(startPos, endPos, controlOne, controlTwo, t));
         }
 

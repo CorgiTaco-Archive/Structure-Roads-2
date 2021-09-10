@@ -76,7 +76,7 @@ public class Visualizer {
         int rgb = new Color(24, 154, 25).getRGB();
 
         for (int i = 0; i < points.size() - 1; i++) {
-            for (BlockPos pos : getBezierPoints(points.get(i), points.get(i + 1))) {
+            for (BlockPos pos : getBezierPoints(points.get(i), points.get(i + 1), 0.001)) {
                 if (pos.getX() < 0 || pos.getZ() < 0 || pos.getX() >= range || pos.getZ() >= range)
                     continue;
                 drawSquare(pos.getX(), pos.getZ(), img, rgb, 3);
