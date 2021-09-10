@@ -62,7 +62,7 @@ public class Visualizer {
         }
     }
 
-    private static void drawSquare(int X, int Z, BufferedImage img, int color, int size) {
+    public static void drawSquare(int X, int Z, BufferedImage img, int color, int size) {
         for (int x = Math.max(0, X - size); x < Math.min(img.getWidth() - 1, X + size); x++) {
             for (int z = Math.max(0, Z - size); z < Math.min(img.getHeight() - 1, Z + size); z++) {
                 img.setRGB(x, z, color);
