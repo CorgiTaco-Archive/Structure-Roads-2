@@ -14,7 +14,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.text.StringTextComponent;
 import net.minecraft.util.text.TranslationTextComponent;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -24,7 +23,6 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -79,7 +77,6 @@ public class DebugPathRegion {
 
         int drawX = (int) position.x - searchRegionBlockMinX;
         int drawZ = (int) position.z - searchRegionBlockMinZ;
-
 
 
         Visualizer.drawSquare(drawX, drawZ, image, new Color(255, 255, 255).getRGB(), 25);

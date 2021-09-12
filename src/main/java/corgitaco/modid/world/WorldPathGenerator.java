@@ -164,7 +164,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
         for (PathGenerator pathGenerator : pathGenerators) {
             Long2ObjectArrayMap<List<BlockPos>> chunkNodes = pathGenerator.getNodesByChunk();
-            if (pathGenerator.intersects(pos)) {
+//            if (pathGenerator.intersects(pos)) {
                 if (chunkNodes.containsKey(currentChunk)) {
                     for (BlockPos blockPos : chunkNodes.get(currentChunk)) {
                         if (DEBUG) {
@@ -173,7 +173,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
                         generatePath(world, random, stateProvider, blockPos);
                     }
-                }
+//                }
                 generateLights(world, random, currentChunk, pathGenerator);
             }
         }
