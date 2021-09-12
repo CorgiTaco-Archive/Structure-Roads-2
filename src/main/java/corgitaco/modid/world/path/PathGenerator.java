@@ -106,21 +106,19 @@ public class PathGenerator {
             pos = pos.east((int) (Math.cos(shiftAngle) * shiftLength)).south((int) (Math.sin(shiftAngle) * shiftLength));
 
             if (pos.getX() < box.x0) {
-                //For some reason there's no setX()
-                pos = pos.east(-pos.getX());
+                pos = pos.east(box.x0 - pos.getX());
             } else if (pos.getX() >= box.x1) {
-                pos = pos.west(pos.getX() - box.x1 + 1);
+                pos = pos.west(box.x1 - pos.getX() + 1);
             }
 
             if (pos.getZ() < box.z0) {
-                pos = pos.south(-pos.getZ());
+                pos = pos.south(box.z0 - pos.getZ());
             } else if (pos.getZ() >= box.z1) {
-                pos = pos.north(pos.getZ() - box.z1 + 1);
+                pos = pos.north(box.z1 - pos.getZ() + 1);
             }
         }
         return pos;
     }
-
 
     public static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos) {
         return pathBox(startPos, endPos, 0);
