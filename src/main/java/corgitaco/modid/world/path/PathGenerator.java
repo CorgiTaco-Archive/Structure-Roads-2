@@ -163,7 +163,6 @@ public class PathGenerator implements IPathGenerator{
         return pos;
     }
 
-
     public static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos) {
         return pathBox(startPos, endPos, 0);
     }
