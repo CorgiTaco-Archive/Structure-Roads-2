@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-public class PathGenerator {
+public class PathGenerator implements IPathGenerator{
 
     public static boolean DEBUG = false;
 
@@ -74,11 +74,10 @@ public class PathGenerator {
             double t = (double) (point) / (pointCount - 1);
             BlockPos pos = getLerpedBlockPos(startPos, endPos, t);
 
-            pos = stayInBox(random, point, pointCount, dist, pos, pathBox);
+            Vec2 gradient = getRandomGradient(random, angle, scale, windiness);
+            pos = stayInBox(random, point, pointCount, dist, pos, pathBox, gradient);
 
-            points.add(new PointWithGradient(pos, getRandomGradient(random, angle, scale, windiness)));
-
-
+            points.add(new PointWithGradient(pos, gradient));
         }
 
         if (DEBUG) {
@@ -97,26 +96,69 @@ public class PathGenerator {
         return normalizedVector.mult(length);
     }
 
-    private static BlockPos stayInBox(Random random, int point, int pointCount, double dist, BlockPos pos, MutableBoundingBox box) {
+    private static BlockPos stayInBox(Random random, int point, int pointCount, double dist, BlockPos pos, MutableBoundingBox box, Vec2 gradient) {
         double shiftAngle = random.nextDouble() * Math.PI * 2;
+        //Most of the new code is attempts and getting it to fit within the bounding box
         if (point != 0 && point != pointCount - 1) {
             double shiftLength = dist * 0.25 / pointCount;
 
 
             pos = pos.east((int) (Math.cos(shiftAngle) * shiftLength)).south((int) (Math.sin(shiftAngle) * shiftLength));
 
-            if (pos.getX() < box.x0) {
-                //For some reason there's no setX()
-                pos = pos.east(-pos.getX());
-            } else if (pos.getX() >= box.x1) {
-                pos = pos.west(pos.getX() - box.x1 + 1);
+            int lowerXPos = (int) (pos.getX() - Math.abs(gradient.getX()));
+            int upperXPos = (int) (pos.getX() + Math.abs(gradient.getX()));
+
+            int lowerZPos = (int) (pos.getZ() - Math.abs(gradient.getY()));
+            int upperZPos = (int) (pos.getZ() + Math.abs(gradient.getY()));
+
+            if (lowerXPos < box.x0) {
+                pos = pos.east(box.x0 - lowerXPos);
+            } else if (upperXPos >= box.x1) {
+                pos = pos.west(box.x1 - upperXPos + 1);
             }
 
-            if (pos.getZ() < box.z0) {
-                pos = pos.south(-pos.getZ());
-            } else if (pos.getZ() >= box.z1) {
-                pos = pos.north(pos.getZ() - box.z1 + 1);
+            if (lowerZPos < box.z0) {
+                pos = pos.south(box.z0 - lowerZPos);
+            } else if (upperZPos >= box.z1) {
+                pos = pos.north(box.z1 - upperZPos + 1);
             }
+        }else{
+            //Note: this will only work if expansion = 0 because of the way it checks what side the points are
+            int multiplier = (point == 0) ? 1 : -1;
+
+            if(pos.getX() == box.x0){
+                gradient.x = Math.abs(gradient.x) * multiplier; //Ensure gradient is positive so it doesn't exit bounding box
+
+                int xPos = (int) (pos.getX() - multiplier * gradient.x);
+                if(xPos > box.x1){
+                    gradient.x = multiplier * (box.x1 - box.x0);
+                }
+            }else{
+                gradient.x = -Math.abs(gradient.x) * multiplier;
+
+                int xPos = (int) (pos.getX() - multiplier * gradient.x);
+                if(xPos < box.x0){
+                    gradient.x = -multiplier * (box.x1 - box.x0);
+                }
+            }
+
+            if(pos.getZ() == box.z0){
+                gradient.y = Math.abs(gradient.y) * multiplier;
+
+                int zPos = (int) (pos.getZ() - multiplier * gradient.y);
+                if(zPos > box.z1){
+                    gradient.y = multiplier * (box.z1 - box.z0);
+                }
+            }else{
+                gradient.y = -Math.abs(gradient.y) * multiplier;
+
+                int zPos = (int) (pos.getZ() - multiplier * gradient.y);
+                if(zPos < box.z0){
+                    gradient.y = - multiplier * (box.z1 - box.z0);
+                }
+            }
+
+            int zPos = (int) (pos.getZ() - multiplier * gradient.y);
         }
         return pos;
     }
@@ -179,6 +221,10 @@ public class PathGenerator {
         return endStructureChunk;
     }
 
+    public MutableBoundingBox getPathBox() {
+        return pathBox;
+    }
+
     public static class PointWithGradient {
         private final BlockPos pos;
         private final Vec2 gradient;
@@ -198,7 +244,7 @@ public class PathGenerator {
     }
 
     public static class Vec2 {
-        private final double x, y;
+        private double x, y;
 
         public Vec2(double x, double y) {
             this.x = x;

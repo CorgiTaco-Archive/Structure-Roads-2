@@ -3,6 +3,7 @@ package corgitaco.modid.mixin;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import corgitaco.modid.Main;
+import corgitaco.modid.commands.DebugAvoidanceMap;
 import corgitaco.modid.commands.DebugPathRegion;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
@@ -24,6 +25,7 @@ public abstract class MixinCommands {
     private void addEnhancedCelestialCommands(Commands.EnvironmentType envType, CallbackInfo ci) {
         LiteralArgumentBuilder<CommandSource> requires = Commands.literal(Main.MOD_ID).requires(commandSource -> commandSource.hasPermission(3));
         requires.then(DebugPathRegion.register(dispatcher));
+        requires.then(DebugAvoidanceMap.register(dispatcher));
         dispatcher.register(requires);
     }
 }

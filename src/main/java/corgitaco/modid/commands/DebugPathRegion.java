@@ -5,18 +5,26 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import corgitaco.debug.Visualizer;
 import corgitaco.modid.world.WorldPathGenerator;
+import corgitaco.modid.world.path.IPathGenerator;
 import corgitaco.modid.world.path.PathContext;
 import corgitaco.modid.world.path.PathGenerator;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
+import net.minecraft.util.RegistryKey;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.util.text.TranslationTextComponent;
+import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.Biomes;
 import net.minecraft.world.server.ServerWorld;
+import net.minecraftforge.common.BiomeDictionary;
 import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.ForgeRegistry;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -90,11 +98,12 @@ public class DebugPathRegion {
                     paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, new Color(0, 200, 0).getRGB(), new ChunkPos(aLong));
                 }
 
-                List<PathGenerator> pathGenerators = pathContext.getPathGenerators().get(regionKey);
+                List<IPathGenerator> pathGenerators = pathContext.getPathGenerators().get(regionKey);
 
                 Random random = new Random(regionKey);
-                for (PathGenerator pathGenerator : pathGenerators) {
-                    int color = new Color(random.nextInt(251) + 5, random.nextInt(251) + 5, random.nextInt(251) + 5).getRGB();
+                for (IPathGenerator pathGenerator : pathGenerators) {
+                    Color color = new Color(random.nextInt(251) + 5, random.nextInt(251) + 5, random.nextInt(251) + 5);
+                    int rgb = color.getRGB();
 
 //                    long startStructureChunk = pathGenerator.getStartStructureChunk();
 //                    long endStructureChunk = pathGenerator.getEndStructureChunk();
@@ -110,13 +119,34 @@ public class DebugPathRegion {
                             int x = blockPos.getX() - searchRegionBlockMinX;
                             int z = blockPos.getZ() - searchRegionBlockMinZ;
 
-                            Visualizer.drawSquare(x, z, image, color, 3);
+                            Visualizer.drawSquare(x, z, image, rgb, 3);
                         }
                     }
+
+                    image.getGraphics().setColor(color);
+
+                    /*for(PathGenerator.PointWithGradient controlPoint : pathGenerator.getPoints()){
+                        int x = controlPoint.getPos().getX() - searchRegionBlockMinX;
+                        int z = controlPoint.getPos().getZ() - searchRegionBlockMinX;
+                        Visualizer.drawSquare(x, z, image, rgb, 15);
+
+                        int controlOneX = (int) (x - controlPoint.getGradient().getX());
+                        int controlOneZ = (int) (z - controlPoint.getGradient().getY());
+
+                        int controlTwoX = (int) (x + controlPoint.getGradient().getX());
+                        int controlTwoZ = (int) (z + controlPoint.getGradient().getY());
+
+                        Visualizer.drawSquare(controlOneX, controlOneZ, image, rgb, 10);
+                        Visualizer.drawSquare(controlTwoX, controlTwoZ, image, rgb, 10);
+
+                        image.getGraphics().drawLine(controlOneX, controlOneZ, controlTwoX, controlTwoZ);
+                    }
+
+                    MutableBoundingBox bbox = pathGenerator.getPathBox();
+                    image.getGraphics().drawRect(bbox.x0 - searchRegionBlockMinX, bbox.z0 - searchRegionBlockMinX, bbox.x1 - bbox.x0, bbox.z1 - bbox.z0);*/
                 }
             }
         }
-
 
         File file = FMLPaths.GAMEDIR.get().resolve("yeet.png").toFile();
         if (file.exists())

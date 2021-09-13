@@ -16,13 +16,13 @@ public class PathContext {
     private final LongSet completedRegionStructureCachesForLevel;
     private final LongSet completedLinkedRegionsForLevel;
     private final Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>> surroundingRegionStructureCachesForRegionForLevel;
-    private final Long2ObjectArrayMap<List<PathGenerator>> pathGenerators;
+    private final Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators;
 
     public PathContext() {
         this(new Long2ReferenceOpenHashMap<>(), new LongArraySet(), new LongArraySet(), new Long2ObjectArrayMap<>(), new Long2ObjectArrayMap<>());
     }
 
-    public PathContext(Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> contextCacheForLevel, LongSet completedRegionStructureCachesForLevel, LongSet completedLinkedRegionsForLevel, Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>> surroundingRegionStructureCachesForRegionForLevel, Long2ObjectArrayMap<List<PathGenerator>> pathGenerators) {
+    public PathContext(Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> contextCacheForLevel, LongSet completedRegionStructureCachesForLevel, LongSet completedLinkedRegionsForLevel, Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>> surroundingRegionStructureCachesForRegionForLevel, Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators) {
         this.contextCacheForLevel = contextCacheForLevel;
         this.completedRegionStructureCachesForLevel = completedRegionStructureCachesForLevel;
         this.completedLinkedRegionsForLevel = completedLinkedRegionsForLevel;
@@ -58,7 +58,7 @@ public class PathContext {
         return surroundingRegionStructureCachesForRegionForLevel;
     }
 
-    public Long2ObjectArrayMap<List<PathGenerator>> getPathGenerators() {
+    public Long2ObjectArrayMap<List<IPathGenerator>> getPathGenerators() {
         if (pathGenerators.size() > MAX_CAPACITY) {
             pathGenerators.clear();
         }
