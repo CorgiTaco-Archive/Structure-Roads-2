@@ -55,7 +55,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
         Long2ObjectArrayMap<Tile> tiles = new Long2ObjectArrayMap<>();
 
         PriorityQueue<Tile> tilesToCheck = new PriorityQueue<>(Tile::compareTo);
-        Tile tileAtStartPos = new Tile(false, startChunk);
+        Tile tileAtStartPos = new Tile(1, startChunk);
         tileAtStartPos.activate(endChunk, 0);
 
         tiles.put(startPos.asLong(), tileAtStartPos);
@@ -65,7 +65,6 @@ public class PathfindingPathGenerator implements IPathGenerator {
         while (!tilesToCheck.isEmpty()) {
             if (nSamples > 10000) break; //To not get stuck if goal is completely inaccesible
             Tile currentTile = tilesToCheck.poll();
-            int newDist = currentTile.distFromStart + 1;
 
             if (currentTile.pos == endChunk) {
                 found = true;
@@ -74,7 +73,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
 
             for (long pos : surroundingChunks(currentTile.pos)) {
                 Tile tile = getTileAt(pos, tiles);
-                if (tile.isMountain) continue;
+                int newDist = currentTile.distFromStart + currentTile.weight;
 
 
                 if (newDist < tile.distFromStart) {
@@ -170,14 +169,14 @@ public class PathfindingPathGenerator implements IPathGenerator {
     private Tile getTileAt(long pos, Long2ObjectArrayMap<Tile> tiles) {
         Tile tile = tiles.get(pos);
         if (tile == null) {
-            Tile newTile = new Tile(shouldAvoid(pos), pos);
+            Tile newTile = new Tile(getWeight(pos), pos);
             tiles.put(pos, newTile);
             return newTile;
         }
         return tile;
     }
 
-    private boolean shouldAvoid(long pos) {
+    private int getWeight(long pos) {
         nSamples++;
         //world.getBiome() seems to sometimes get the biome from the world and cause a lock for some reason
         //As far as I can tell this alternative will always calculate the biome
@@ -186,9 +185,12 @@ public class PathfindingPathGenerator implements IPathGenerator {
         Biome biome = this.biomeSource.getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2);
 
         if (biome.getBiomeCategory().equals(Biome.Category.OCEAN) /*|| testHeight(startY, startY, SectionPos.sectionToBlockCoord(chunkX), SectionPos.sectionToBlockCoord(chunkZ), chunkGenerator)*/) {
-            return true;
+            return 10000;
+        }else if(biome.getBiomeCategory().equals(Biome.Category.RIVER)){
+            return 3;
         }
-        return biome.getDepth() > 0.5f;
+
+        return biome.getDepth() > 0.5f ? 10000 : 1;
 
     }
 
@@ -218,11 +220,11 @@ public class PathfindingPathGenerator implements IPathGenerator {
         private int distFromStart = Integer.MAX_VALUE;
         private float distFromGoal = Float.MAX_VALUE;
         private boolean active = false;
-        private final boolean isMountain;
+        private final int weight;
         private final long pos;
 
-        public Tile(boolean isMountain, long pos) {
-            this.isMountain = isMountain;
+        public Tile(int weight, long pos) {
+            this.weight = weight;
             this.pos = pos;
         }
 
