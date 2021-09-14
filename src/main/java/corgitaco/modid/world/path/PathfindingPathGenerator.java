@@ -92,15 +92,22 @@ public class PathfindingPathGenerator implements IPathGenerator {
 
         if (found) {
             Tile currentTile = tiles.get(endChunk);
-            while (currentTile.bestPrev != null) {
-                BlockPos start = new BlockPos(ChunkPos.getX(currentTile.pos) * 16 + 8, 60, ChunkPos.getZ(currentTile.pos) * 16 + 8);
-                BlockPos end = new BlockPos(ChunkPos.getX(currentTile.bestPrev.pos) * 16 + 8, 60, ChunkPos.getZ(currentTile.bestPrev.pos) * 16 + 8);
-                for (float t = 0; t < 1; t += 0.2) {
-                    addBlockPos(PathGenerator.getLerpedBlockPos(start, end, t));
-                }
-
+            List<BlockPos> basePos = new ArrayList<>();
+            while (currentTile != null) {
+                basePos.add(new BlockPos(ChunkPos.getX(currentTile.pos) * 16 + 8, 0, ChunkPos.getZ(currentTile.pos) * 16 + 8));
                 currentTile = currentTile.bestPrev;
             }
+
+            List<BlockPos> positions = averagePoints(basePos);
+            for(int i = 0; i < positions.size() - 1; i++){
+                BlockPos start = positions.get(i);
+                BlockPos end = positions.get(i + 1);
+
+                for(float t = 0.0f; t < 1; t += 0.2f){
+                    addBlockPos(PathGenerator.getLerpedBlockPos(start, end, t));
+                }
+            }
+            addBlockPos(positions.get(basePos.size() - 1));
         } else {
             if (ADDITIONAL_DEBUG_DETAILS) {
                 System.out.println("No path found!");
@@ -109,6 +116,31 @@ public class PathfindingPathGenerator implements IPathGenerator {
 
 
         System.out.println(String.format("Pathfinder Gen for: %s - %s took %sms. Sampled %s times.", startPos, endPos, System.currentTimeMillis() - startTime, nSamples));
+    }
+
+    private static List<BlockPos> averagePoints(List<BlockPos> pos){
+        List<BlockPos> averagePoints = new ArrayList<>(pos.size());
+        averagePoints.add(pos.get(0));
+        for(int i = 1; i < pos.size() - 1; i++){
+            int x = pos.get(i - 1).getX() + 2 * pos.get(i).getX() + pos.get(i + 1).getX();
+            int z = pos.get(i - 1).getZ() + 2 * pos.get(i).getZ() + pos.get(i + 1).getZ();
+
+            averagePoints.add(new BlockPos(x / 4, 0, z / 4));
+        }
+        averagePoints.add(pos.get(pos.size() - 1));
+
+        return averagePoints;
+    }
+
+    private void addLightPos(BlockPos pos) {
+        long chunkPos = getChunkLongFromBlockPos(pos);
+        List<BlockPos> nodeList = lightsByChunk.get(chunkPos);
+        if (nodeList == null) {
+            nodeList = new ArrayList<>();
+            lightsByChunk.put(chunkPos, nodeList);
+        }
+
+        nodeList.add(pos);
     }
 
     private void addBlockPos(BlockPos pos) {
@@ -153,7 +185,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
         int chunkZ = ChunkPos.getZ(pos);
         Biome biome = this.biomeSource.getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2);
 
-        if (biome.getBiomeCategory().equals(Biome.Category.OCEAN) || testHeight(startY, startY, SectionPos.sectionToBlockCoord(chunkX), SectionPos.sectionToBlockCoord(chunkZ), chunkGenerator)) {
+        if (biome.getBiomeCategory().equals(Biome.Category.OCEAN) /*|| testHeight(startY, startY, SectionPos.sectionToBlockCoord(chunkX), SectionPos.sectionToBlockCoord(chunkZ), chunkGenerator)*/) {
             return true;
         }
         return biome.getDepth() > 0.5f;
