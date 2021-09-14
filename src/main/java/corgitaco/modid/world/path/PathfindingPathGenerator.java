@@ -10,6 +10,8 @@ import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.provider.BiomeProvider;
+import net.minecraft.world.gen.ChunkGenerator;
+import net.minecraft.world.gen.Heightmap;
 import net.minecraft.world.server.ServerWorld;
 
 import java.util.ArrayList;
@@ -21,11 +23,19 @@ public class PathfindingPathGenerator implements IPathGenerator {
     private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
     private final Long2ObjectArrayMap<List<BlockPos>> lightsByChunk = new Long2ObjectArrayMap<>();
     private final BiomeProvider biomeSource;
+    private final ChunkGenerator chunkGenerator;
+    private final int startY;
+    private final int endY;
+
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
 
     public PathfindingPathGenerator(ServerWorld world, BlockPos startPos, BlockPos endPos, Random random, BiomeProvider biomeSource) {
         this.biomeSource = biomeSource;
+        this.chunkGenerator = world.getChunkSource().generator;
+
+        this.startY = chunkGenerator.getBaseHeight(startPos.getX(), startPos.getZ(), Heightmap.Type.OCEAN_FLOOR_WG);
+        this.endY = chunkGenerator.getBaseHeight(endPos.getX(), endPos.getZ(), Heightmap.Type.OCEAN_FLOOR_WG);
 
         if (ADDITIONAL_DEBUG_DETAILS) {
             System.out.println(String.format("Started Pathfinder Gen for: %s - %s", startPos, endPos));
@@ -139,12 +149,22 @@ public class PathfindingPathGenerator implements IPathGenerator {
         nSamples++;
         //world.getBiome() seems to sometimes get the biome from the world and cause a lock for some reason
         //As far as I can tell this alternative will always calculate the biome
-        Biome biome = this.biomeSource.getNoiseBiome((ChunkPos.getX(pos) << 2) + 2, 60, (ChunkPos.getZ(pos) << 2) + 2);
-        if (biome.getBiomeCategory().equals(Biome.Category.OCEAN))
+        int chunkX = ChunkPos.getX(pos);
+        int chunkZ = ChunkPos.getZ(pos);
+        Biome biome = this.biomeSource.getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2);
+
+        if (biome.getBiomeCategory().equals(Biome.Category.OCEAN) || testHeight(startY, startY, SectionPos.sectionToBlockCoord(chunkX), SectionPos.sectionToBlockCoord(chunkZ), chunkGenerator)) {
             return true;
+        }
         return biome.getDepth() > 0.5f;
 
     }
+
+    public static boolean testHeight(int startY, int endY, int x, int z, ChunkGenerator generator) {
+        int baseHeight = generator.getBaseHeight(x, z, Heightmap.Type.OCEAN_FLOOR_WG);
+        return baseHeight <= startY + 10 && baseHeight >= generator.getSeaLevel() && baseHeight >= endY;
+    }
+
 
     @Override
     public Long2ObjectArrayMap<List<BlockPos>> getNodesByChunk() {
