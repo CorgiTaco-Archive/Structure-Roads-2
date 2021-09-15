@@ -28,6 +28,7 @@ import net.minecraftforge.registries.ForgeRegistry;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -88,6 +89,37 @@ public class DebugPathRegion {
 
 
         Visualizer.drawSquare(drawX, drawZ, image, new Color(255, 255, 255).getRGB(), 25);
+
+        //Draw axes to make it easy to locate things
+        //X-axis
+        Graphics g = image.getGraphics();
+        int lineDrawX = drawX % 100;
+        int lineDrawZ = drawZ % 100;
+
+        while(lineDrawX < range){
+            String s = String.valueOf(lineDrawX);
+            g.setColor(Color.GRAY);
+            g.drawLine(lineDrawX, 0, lineDrawX, range);
+            g.setColor(Color.WHITE);
+            g.drawLine(lineDrawX, drawZ - 20, lineDrawX, drawZ + 20);
+            g.drawString(s, lineDrawX - g.getFontMetrics().stringWidth(s) / 2, drawZ - 40);
+            lineDrawX += 100;
+        }
+
+        //Y/Z-Axis
+        while(lineDrawZ < range){
+            String s = String.valueOf(lineDrawZ);
+            g.setColor(Color.GRAY);
+            g.drawLine(0, lineDrawZ, range, lineDrawZ);
+            g.setColor(Color.WHITE);
+            g.drawLine(drawX - 20, lineDrawZ, drawX + 20, lineDrawZ);
+            Rectangle2D bounds = g.getFontMetrics().getStringBounds(s, g);
+            g.drawString(s, drawX + 25, (int) (lineDrawZ + bounds.getHeight() / 2));
+            lineDrawZ += 100;
+        }
+
+        g.drawLine(0, drawZ, range, drawZ);
+        g.drawLine(drawX, 0, drawX, range);
 
         for (int xSearch = minSearchRangeRegionX; xSearch <= maxSearchRangeRegionX; xSearch++) {
             for (int zSearch = minSearchRangeRegionZ; zSearch <= maxSearchRangeRegionZ; zSearch++) {

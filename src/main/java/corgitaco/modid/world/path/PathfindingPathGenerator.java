@@ -5,27 +5,36 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongIterable;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.util.RegistryKey;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.SectionPos;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.provider.BiomeProvider;
 import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.Heightmap;
+import net.minecraft.world.gen.NoiseChunkGenerator;
+import net.minecraft.world.gen.SimplexNoiseGenerator;
 import net.minecraft.world.server.ServerWorld;
+import net.minecraftforge.common.BiomeDictionary;
+import net.minecraftforge.registries.ForgeRegistries;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.PriorityQueue;
-import java.util.Random;
+import static net.minecraftforge.common.BiomeDictionary.Type;
+
+import java.util.*;
 
 public class PathfindingPathGenerator implements IPathGenerator {
     private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
     private final Long2ObjectArrayMap<List<BlockPos>> lightsByChunk = new Long2ObjectArrayMap<>();
     private final BiomeProvider biomeSource;
     private final ChunkGenerator chunkGenerator;
-    private final int startY;
-    private final int endY;
+    private final BlockPos startPos;
+    private final BlockPos endPos;
+    private final SimplexNoiseGenerator simplex;
+    private final Registry<Biome> biomeRegistry;
+    private final int startY, endY;
 
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
@@ -33,10 +42,19 @@ public class PathfindingPathGenerator implements IPathGenerator {
     public PathfindingPathGenerator(ServerWorld world, BlockPos startPos, BlockPos endPos, Random random, BiomeProvider biomeSource) {
         this.biomeSource = biomeSource;
         this.chunkGenerator = world.getChunkSource().generator;
+        this.startY = getHeight(startPos.getX(), startPos.getZ(), world.getChunkSource().getGenerator());
+        this.endY = getHeight(endPos.getX(), endPos.getZ(), world.getChunkSource().getGenerator());
+        this.startPos = startPos;
+        this.endPos = endPos;
 
-        this.startY = chunkGenerator.getBaseHeight(startPos.getX(), startPos.getZ(), Heightmap.Type.OCEAN_FLOOR_WG);
-        this.endY = chunkGenerator.getBaseHeight(endPos.getX(), endPos.getZ(), Heightmap.Type.OCEAN_FLOOR_WG);
+        this.simplex = new SimplexNoiseGenerator(new Random(world.getSeed()));
 
+        biomeRegistry = world.registryAccess().registry(Registry.BIOME_REGISTRY).orElse(null);
+
+        generatePath();
+    }
+
+    private void generatePath(){
         if (ADDITIONAL_DEBUG_DETAILS) {
             System.out.println(String.format("Started Pathfinder Gen for: %s - %s", startPos, endPos));
         }
@@ -51,14 +69,46 @@ public class PathfindingPathGenerator implements IPathGenerator {
             return;
         }
 
+        Tile pathInfo = findBestPath(startChunk, endChunk);
 
+        if (pathInfo != null) {
+            Tile currentTile = pathInfo;
+            List<BlockPos> basePos = new ArrayList<>();
+            while (currentTile != null) {
+                basePos.add(new BlockPos(ChunkPos.getX(currentTile.pos) * 16 + 8, 0, ChunkPos.getZ(currentTile.pos) * 16 + 8));
+                currentTile = currentTile.bestPrev;
+            }
+
+            List<BlockPos> positions = averagePoints(basePos);
+            for(int i = 0; i < positions.size() - 1; i++){
+                BlockPos start = positions.get(i);
+                BlockPos end = positions.get(i + 1);
+
+                for(float t = 0.0f; t < 1; t += 0.2f){
+                    addBlockPos(PathGenerator.getLerpedBlockPos(start, end, t));
+                }
+            }
+            addBlockPos(positions.get(basePos.size() - 1));
+        } else {
+            if (ADDITIONAL_DEBUG_DETAILS) {
+                System.out.println("No path found!");
+            }
+        }
+
+
+        System.out.println(String.format("Pathfinder Gen for: %s - %s took %sms. Sampled %s times.", startPos, endPos, System.currentTimeMillis() - startTime, nSamples));
+    }
+
+    //Returns a tile that represents the endChunk
+    //Tracing through the .bestPrev of every tile yields the path
+    private Tile findBestPath(long startChunk, long endChunk){
         Long2ObjectArrayMap<Tile> tiles = new Long2ObjectArrayMap<>();
 
         PriorityQueue<Tile> tilesToCheck = new PriorityQueue<>(Tile::compareTo);
         Tile tileAtStartPos = new Tile(1, startChunk);
         tileAtStartPos.activate(endChunk, 0);
 
-        tiles.put(startPos.asLong(), tileAtStartPos);
+        tiles.put(startChunk, tileAtStartPos);
         tilesToCheck.add(tileAtStartPos);
 
         boolean found = false;
@@ -89,42 +139,21 @@ public class PathfindingPathGenerator implements IPathGenerator {
             }
         }
 
-        if (found) {
-            Tile currentTile = tiles.get(endChunk);
-            List<BlockPos> basePos = new ArrayList<>();
-            while (currentTile != null) {
-                basePos.add(new BlockPos(ChunkPos.getX(currentTile.pos) * 16 + 8, 0, ChunkPos.getZ(currentTile.pos) * 16 + 8));
-                currentTile = currentTile.bestPrev;
-            }
-
-            List<BlockPos> positions = averagePoints(basePos);
-            for(int i = 0; i < positions.size() - 1; i++){
-                BlockPos start = positions.get(i);
-                BlockPos end = positions.get(i + 1);
-
-                for(float t = 0.0f; t < 1; t += 0.2f){
-                    addBlockPos(PathGenerator.getLerpedBlockPos(start, end, t));
-                }
-            }
-            addBlockPos(positions.get(basePos.size() - 1));
-        } else {
-            if (ADDITIONAL_DEBUG_DETAILS) {
-                System.out.println("No path found!");
-            }
-        }
-
-
-        System.out.println(String.format("Pathfinder Gen for: %s - %s took %sms. Sampled %s times.", startPos, endPos, System.currentTimeMillis() - startTime, nSamples));
+        if(found) return tiles.get(endChunk);
+        else return null;
     }
 
-    private static List<BlockPos> averagePoints(List<BlockPos> pos){
+    private List<BlockPos> averagePoints(List<BlockPos> pos){
         List<BlockPos> averagePoints = new ArrayList<>(pos.size());
         averagePoints.add(pos.get(0));
         for(int i = 1; i < pos.size() - 1; i++){
             int x = pos.get(i - 1).getX() + 2 * pos.get(i).getX() + pos.get(i + 1).getX();
             int z = pos.get(i - 1).getZ() + 2 * pos.get(i).getZ() + pos.get(i + 1).getZ();
 
-            averagePoints.add(new BlockPos(x / 4, 0, z / 4));
+            int xShift = (int) (simplex.getValue(x * 100, z * 100) * 5);
+            int zShift = (int) (simplex.getValue(x * 100, z * 100 + 173647) * 5);
+
+            averagePoints.add(new BlockPos(x / 4 + xShift, 0, z / 4 + zShift));
         }
         averagePoints.add(pos.get(pos.size() - 1));
 
@@ -178,24 +207,48 @@ public class PathfindingPathGenerator implements IPathGenerator {
 
     private int getWeight(long pos) {
         nSamples++;
-        //world.getBiome() seems to sometimes get the biome from the world and cause a lock for some reason
-        //As far as I can tell this alternative will always calculate the biome
         int chunkX = ChunkPos.getX(pos);
         int chunkZ = ChunkPos.getZ(pos);
         Biome biome = this.biomeSource.getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2);
+        RegistryKey<Biome> biomeKey = null;
+        if(biomeRegistry != null)
+            biomeKey = biomeRegistry.getResourceKey(biome).orElse(null);
 
-        if (biome.getBiomeCategory().equals(Biome.Category.OCEAN) /*|| testHeight(startY, startY, SectionPos.sectionToBlockCoord(chunkX), SectionPos.sectionToBlockCoord(chunkZ), chunkGenerator)*/) {
+        Set<Type> biomeTypes = BiomeDictionary.getTypes(biomeKey);
+        if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU) || testHeight(startY, endY, chunkX * 16 + 8, chunkZ * 16 + 8, chunkGenerator)) {
             return 10000;
-        }else if(biome.getBiomeCategory().equals(Biome.Category.RIVER)){
-            return 3;
+        }else if(containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)){
+            return 3; //Will make river crossing try to be shorter
         }
 
-        return biome.getDepth() > 0.5f ? 10000 : 1;
+        return 1;
+    }
 
+    private static <T> boolean containsAny(Collection<T> collection, T... items){
+        for(T item : items){
+            if(collection.contains(item)){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int getHeight(int x, int z, ChunkGenerator generator){
+        if(generator instanceof NoiseChunkGenerator){
+            double[] column = ((NoiseChunkGenerator) generator).makeAndFillNoiseColumn(x, z);
+            int baseHeight = column.length - 1;
+            for(; baseHeight >= 0; baseHeight--){
+                if(column[baseHeight] > 0.0) break;
+            }
+            return baseHeight;
+        }else{
+            System.out.println("Used getBaseHeight");
+            return generator.getBaseHeight(x, z, Heightmap.Type.OCEAN_FLOOR_WG);
+        }
     }
 
     public static boolean testHeight(int startY, int endY, int x, int z, ChunkGenerator generator) {
-        int baseHeight = generator.getBaseHeight(x, z, Heightmap.Type.OCEAN_FLOOR_WG);
+        int baseHeight = getHeight(x, z, generator);
         return baseHeight <= startY + 10 && baseHeight >= generator.getSeaLevel() && baseHeight >= endY;
     }
 
