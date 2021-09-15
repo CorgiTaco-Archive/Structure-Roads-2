@@ -1,12 +1,13 @@
 package corgitaco.modid.world.path;
 
+import corgitaco.modid.util.DataForChunk;
+import corgitaco.modid.world.WorldPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongIterable;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.RegistryKey;
-import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.SectionPos;
@@ -15,11 +16,9 @@ import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.provider.BiomeProvider;
 import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.Heightmap;
-import net.minecraft.world.gen.NoiseChunkGenerator;
 import net.minecraft.world.gen.SimplexNoiseGenerator;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.common.BiomeDictionary;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import static net.minecraftforge.common.BiomeDictionary.Type;
 
@@ -39,7 +38,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
 
-    public PathfindingPathGenerator(ServerWorld world, BlockPos startPos, BlockPos endPos, Random random, BiomeProvider biomeSource) {
+    public PathfindingPathGenerator(ServerWorld world, BlockPos startPos, BlockPos endPos, Random random, BiomeProvider biomeSource, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion) {
         this.biomeSource = biomeSource;
         this.chunkGenerator = world.getChunkSource().generator;
         this.startY = getHeight(startPos.getX(), startPos.getZ(), world.getChunkSource().getGenerator());
@@ -51,10 +50,10 @@ public class PathfindingPathGenerator implements IPathGenerator {
 
         biomeRegistry = world.registryAccess().registry(Registry.BIOME_REGISTRY).orElse(null);
 
-        generatePath();
+        generatePath(dataForRegion);
     }
 
-    private void generatePath(){
+    private void generatePath(Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion){
         if (ADDITIONAL_DEBUG_DETAILS) {
             System.out.println(String.format("Started Pathfinder Gen for: %s - %s", startPos, endPos));
         }
@@ -69,7 +68,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
             return;
         }
 
-        Tile pathInfo = findBestPath(startChunk, endChunk);
+        Tile pathInfo = findBestPath(startChunk, endChunk, dataForRegion);
 
         if (pathInfo != null) {
             Tile currentTile = pathInfo;
@@ -101,7 +100,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
 
     //Returns a tile that represents the endChunk
     //Tracing through the .bestPrev of every tile yields the path
-    private Tile findBestPath(long startChunk, long endChunk){
+    private Tile findBestPath(long startChunk, long endChunk, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion){
         Long2ObjectArrayMap<Tile> tiles = new Long2ObjectArrayMap<>();
 
         PriorityQueue<Tile> tilesToCheck = new PriorityQueue<>(Tile::compareTo);
@@ -122,7 +121,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
             }
 
             for (long pos : surroundingChunks(currentTile.pos)) {
-                Tile tile = getTileAt(pos, tiles);
+                Tile tile = getTileAt(pos, tiles, dataForRegion);
                 int newDist = currentTile.distFromStart + currentTile.weight;
 
 
@@ -195,27 +194,43 @@ public class PathfindingPathGenerator implements IPathGenerator {
         return points;
     }
 
-    private Tile getTileAt(long pos, Long2ObjectArrayMap<Tile> tiles) {
+    private Tile getTileAt(long pos, Long2ObjectArrayMap<Tile> tiles, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion) {
         Tile tile = tiles.get(pos);
         if (tile == null) {
-            Tile newTile = new Tile(getWeight(pos), pos);
+            Tile newTile = new Tile(getWeight(dataForRegion, pos), pos);
             tiles.put(pos, newTile);
             return newTile;
         }
         return tile;
     }
 
-    private int getWeight(long pos) {
+    private int getWeight(Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion, long pos) {
         nSamples++;
         int chunkX = ChunkPos.getX(pos);
         int chunkZ = ChunkPos.getZ(pos);
-        Biome biome = this.biomeSource.getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2);
+
+        Long2ObjectArrayMap<DataForChunk> regionData = dataForRegion.computeIfAbsent(WorldPathGenerator.chunkToRegionKey(pos), (key) -> {
+            return new Long2ObjectArrayMap<>();
+        });
+
+
+        DataForChunk chunkData = regionData.computeIfAbsent(pos, (key) -> {
+            return new DataForChunk(this.biomeSource.getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2));
+        });
+
+        Biome biome = chunkData.getBiome();
         RegistryKey<Biome> biomeKey = null;
-        if(biomeRegistry != null)
+        if(biomeRegistry != null) {
             biomeKey = biomeRegistry.getResourceKey(biome).orElse(null);
+        }
+
+
+
+
+
 
         Set<Type> biomeTypes = BiomeDictionary.getTypes(biomeKey);
-        if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU) || testHeight(startY, endY, chunkX * 16 + 8, chunkZ * 16 + 8, chunkGenerator)) {
+        if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU) || testHeight(startY, endY, chunkData.getHeight(chunkGenerator, chunkX * 16 + 8, chunkZ * 16 + 8), chunkGenerator.getSeaLevel())) {
             return 10000;
         }else if(containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)){
             return 3; //Will make river crossing try to be shorter
@@ -234,22 +249,26 @@ public class PathfindingPathGenerator implements IPathGenerator {
     }
 
     private static int getHeight(int x, int z, ChunkGenerator generator){
-        if(generator instanceof NoiseChunkGenerator){
-            double[] column = ((NoiseChunkGenerator) generator).makeAndFillNoiseColumn(x, z);
-            int baseHeight = column.length - 1;
-            for(; baseHeight >= 0; baseHeight--){
-                if(column[baseHeight] > 0.0) break;
-            }
-            return baseHeight;
-        }else{
-            System.out.println("Used getBaseHeight");
+//        if(generator instanceof NoiseChunkGenerator){
+//            double[] column = ((NoiseChunkGenerator) generator).makeAndFillNoiseColumn(x, z);
+//            int baseHeight = column.length - 1;
+//            for(; baseHeight >= 0; baseHeight--){
+//                if(column[baseHeight] > 0.0) break;
+//            }
+//            return baseHeight;
+//        }else{
+//            System.out.println("Used getBaseHeight");
             return generator.getBaseHeight(x, z, Heightmap.Type.OCEAN_FLOOR_WG);
-        }
+//        }
     }
 
     public static boolean testHeight(int startY, int endY, int x, int z, ChunkGenerator generator) {
         int baseHeight = getHeight(x, z, generator);
         return baseHeight <= startY + 10 && baseHeight >= generator.getSeaLevel() && baseHeight >= endY;
+    }
+
+    public static boolean testHeight(int startY, int endY, int height, int seaLevel) {
+        return height <= startY + 10 && height >= seaLevel && height >= endY;
     }
 
 

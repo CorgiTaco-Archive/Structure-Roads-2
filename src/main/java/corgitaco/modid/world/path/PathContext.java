@@ -1,6 +1,7 @@
 package corgitaco.modid.world.path;
 
 import corgitaco.modid.structure.AdditionalStructureContext;
+import corgitaco.modid.util.DataForChunk;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArraySet;
@@ -17,6 +18,7 @@ public class PathContext {
     private final LongSet completedLinkedRegionsForLevel;
     private final Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>> surroundingRegionStructureCachesForRegionForLevel;
     private final Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators;
+    private final Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataCache = new Long2ObjectArrayMap<>();
 
     public PathContext() {
         this(new Long2ReferenceOpenHashMap<>(), new LongArraySet(), new LongArraySet(), new Long2ObjectArrayMap<>(), new Long2ObjectArrayMap<>());
@@ -63,6 +65,13 @@ public class PathContext {
             pathGenerators.clear();
         }
         return pathGenerators;
+    }
+
+    public Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> getDataCache() {
+        if (dataCache.size() > 50000) {
+            dataCache.clear();
+        }
+        return dataCache;
     }
 
     public interface Access {
