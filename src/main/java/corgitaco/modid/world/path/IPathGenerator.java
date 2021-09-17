@@ -6,6 +6,7 @@ import corgitaco.modid.util.CodecUtil;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.world.gen.feature.structure.Structure;
 
 import java.util.List;
@@ -14,6 +15,8 @@ public interface IPathGenerator<T> {
     Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getNodesByRegion();
     Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getLightsByRegion();
     BlockState debugState();
+    MutableBoundingBox getBoundingBox();
+    boolean createdSuccessfully();
 
     Point<T> getStart();
     Point<T> getEnd();

@@ -1,7 +1,5 @@
 package corgitaco.modid.world.path;
 
-import corgitaco.modid.world.WorldPathGenerator;
-import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.util.math.*;
@@ -12,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static corgitaco.modid.core.StructureRegionManager.*;
+import static corgitaco.modid.core.StructureRegionManager.chunkToRegionKey;
 
 public class PathGenerator implements IPathGenerator<Structure<?>> {
 
@@ -62,7 +60,15 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
     public BlockState debugState() {
         return debugState;
     }
+    @Override
+    public MutableBoundingBox getBoundingBox() {
+        return pathBox;
+    }
 
+    @Override
+    public boolean createdSuccessfully() {
+        return true;
+    }
     @Override
     public Point<Structure<?>> getStart() {
         return null;
@@ -79,7 +85,7 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
     }
 
     public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getLightsByRegion() {
-        return lightsByChunk;
+       return this.lightsByChunk;
     }
 
     @Override

@@ -2,6 +2,7 @@ package corgitaco.modid.world.path;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import corgitaco.modid.util.CodecUtil;
 import corgitaco.modid.util.DataForChunk;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
@@ -11,6 +12,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.util.RegistryKey;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.world.biome.Biome;
@@ -37,6 +39,8 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
             return new HashMap<>(pathfindingPathGenerator.nodesByRegion);
         }), Codec.LONG.fieldOf("saveRegion").forGetter(pathfindingPathGenerator -> {
             return pathfindingPathGenerator.saveRegion;
+        }), CodecUtil.BOUNDING_BOX_CODEC.fieldOf("pathBox").forGetter(pathfindingPathGenerator -> {
+            return pathfindingPathGenerator.pathBox;
         })).apply(builder, PathfindingPathGenerator::new);
     });
 
@@ -47,26 +51,29 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
     private final Point<Structure<?>> endPoint;
     private SimplexNoiseGenerator simplex;
     private final long saveRegion;
+    private final MutableBoundingBox pathBox;
 
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
+    private static final int BOUNDING_BOX_EXPANSION = 3;
     private boolean dispose = false;
 
-    private long lastGameTime;
-
-    public PathfindingPathGenerator(Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Map<Long, Map<Long, List<BlockPos>>> nodesByRegion, long saveRegion) {
+    public PathfindingPathGenerator(Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Map<Long, Map<Long, List<BlockPos>>> nodesByRegion, long saveRegion, MutableBoundingBox pathBox) {
         this.startPoint = startPoint;
         this.endPoint = endPoint;
         this.saveRegion = saveRegion;
         nodesByRegion.forEach((regionkey, positionsByChunk) -> {
             this.nodesByRegion.put(regionkey.longValue(), new Long2ReferenceOpenHashMap<>(positionsByChunk));
         });
+        this.pathBox = pathBox;
     }
 
     public PathfindingPathGenerator(ServerWorld world, Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion) {
         ChunkGenerator generator = world.getChunkSource().getGenerator();
         this.startPoint = new Point<>(startPoint.getStructure(), new BlockPos(startPoint.getPos().getX(), getHeight(startPoint.getPos().getX(), startPoint.getPos().getZ(), generator), startPoint.getPos().getZ()));
         this.endPoint = new Point<>(endPoint.getStructure(), new BlockPos(endPoint.getPos().getX(), getHeight(endPoint.getPos().getX(), endPoint.getPos().getZ(), generator), endPoint.getPos().getZ()));
+        this.pathBox = pathBox(startPoint.getPos(), endPoint.getPos(), BOUNDING_BOX_EXPANSION);
+
         this.simplex = new SimplexNoiseGenerator(new Random(world.getSeed()));
 
 
@@ -92,6 +99,21 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
         this.saveRegion = saveRegion;
     }
+
+    public static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos) {
+        return pathBox(startPos, endPos, 0);
+    }
+
+    public static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos, int expansion) {
+        int startPosX = startPos.getX();
+        int startPosZ = startPos.getZ();
+
+        int endPosX = endPos.getX();
+        int endPosZ = endPos.getZ();
+
+        return new MutableBoundingBox(Math.min(startPosX, endPosX) - expansion, 0, Math.min(startPosZ, endPosZ) - expansion, Math.max(startPosX, endPosX) + expansion, 0, Math.max(startPosZ, endPosZ) + expansion);
+    }
+
 
     private void generatePath(Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
         if (ADDITIONAL_DEBUG_DETAILS) {
@@ -119,12 +141,22 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
             }
 
             List<BlockPos> positions = averagePoints(basePos);
-            for (int i = 0; i < positions.size() - 1; i++) {
+            for(BlockPos pos : positions){
+                expandBoundingBoxToFit(pos);
+            }
+
+            for(int i = 0; i < positions.size() - 1; i++){
                 BlockPos start = positions.get(i);
                 BlockPos end = positions.get(i + 1);
 
-                for (float t = 0.0f; t < 1; t += 0.2f) {
-                    addBlockPos(PathGenerator.getLerpedBlockPos(start, end, t));
+                int dx = Math.abs(start.getX() - end.getZ());
+                int dz = Math.abs(start.getZ() - end.getZ());
+
+                int steps = (int) Math.ceil(Math.max(dx, dz) / 3.0f);
+                if(steps <= 1) steps = 2;
+
+                for(int step = 0; step < steps; step++){
+                    addBlockPos(PathGenerator.getLerpedBlockPos(start, end, (float) step / steps));
                 }
             }
             addBlockPos(positions.get(basePos.size() - 1));
@@ -180,6 +212,20 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
         if (found) return tiles.get(endChunk);
         else return null;
+    }
+
+    private void expandBoundingBoxToFit(BlockPos pos){
+        if(pathBox.x0 > pos.getX() - BOUNDING_BOX_EXPANSION){
+            pathBox.x0 = pos.getX() - BOUNDING_BOX_EXPANSION;
+        }else if(pathBox.x1 < pos.getX() + BOUNDING_BOX_EXPANSION){
+            pathBox.x1 = pos.getX() + BOUNDING_BOX_EXPANSION;
+        }
+
+        if(pathBox.z0 > pos.getZ() - BOUNDING_BOX_EXPANSION){
+            pathBox.z0 = pos.getZ() - BOUNDING_BOX_EXPANSION;
+        }else if(pathBox.z1 < pos.getZ() + BOUNDING_BOX_EXPANSION){
+            pathBox.z1 = pos.getZ() + BOUNDING_BOX_EXPANSION;
+        }
     }
 
     private List<BlockPos> averagePoints(List<BlockPos> pos) {
@@ -326,6 +372,16 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
     @Override
     public BlockState debugState() {
         return Blocks.RED_CONCRETE.defaultBlockState();
+    }
+
+    @Override
+    public MutableBoundingBox getBoundingBox() {
+        return pathBox;
+    }
+
+    @Override
+    public boolean createdSuccessfully() {
+        return true;
     }
 
     @Override

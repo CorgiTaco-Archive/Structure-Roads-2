@@ -12,6 +12,7 @@ import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.util.text.TranslationTextComponent;
@@ -89,8 +90,8 @@ public class DebugPathRegion {
         int lineDrawX = drawX % 100;
         int lineDrawZ = drawZ % 100;
 
-        while(lineDrawX < range){
-            String s = String.valueOf(lineDrawX);
+        while (lineDrawX < range) {
+            String s = String.valueOf(lineDrawX + searchRegionBlockMinX);
             g.setColor(Color.GRAY);
             g.drawLine(lineDrawX, 0, lineDrawX, range);
             g.setColor(Color.WHITE);
@@ -100,8 +101,8 @@ public class DebugPathRegion {
         }
 
         //Y/Z-Axis
-        while(lineDrawZ < range){
-            String s = String.valueOf(lineDrawZ);
+        while (lineDrawZ < range) {
+            String s = String.valueOf(lineDrawZ + searchRegionBlockMinZ);
             g.setColor(Color.GRAY);
             g.drawLine(0, lineDrawZ, range, lineDrawZ);
             g.setColor(Color.WHITE);
@@ -115,12 +116,9 @@ public class DebugPathRegion {
         g.drawLine(drawX, 0, drawX, range);
 
 
-
-
-
         for (int xSearch = minSearchRangeRegionX; xSearch <= maxSearchRangeRegionX; xSearch++) {
             for (int zSearch = minSearchRangeRegionZ; zSearch <= maxSearchRangeRegionZ; zSearch++) {
-                paintRegion(pathContext, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);
+                paintRegion(pathContext, g, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);
             }
         }
 
@@ -140,7 +138,7 @@ public class DebugPathRegion {
         return 1;
     }
 
-    private static void paintRegion(PathContext pathContext, int range, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, int xSearch, int zSearch) {
+    private static void paintRegion(PathContext pathContext, Graphics g, int range, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, int xSearch, int zSearch) {
         long regionKey = regionKey(xSearch, zSearch);
         LongSet completedRegionStructureCachesForLevel = pathContext.getContextCacheForLevel().get(regionKey).keySet();
 
@@ -173,28 +171,10 @@ public class DebugPathRegion {
                     Visualizer.drawSquare(x, z, image, rgb, 3);
                 }
             }
+            g.setColor(color);
 
-            image.getGraphics().setColor(color);
-
-            /*for(PathGenerator.PointWithGradient controlPoint : pathGenerator.getPoints()){
-                int x = controlPoint.getPos().getX() - searchRegionBlockMinX;
-                int z = controlPoint.getPos().getZ() - searchRegionBlockMinX;
-                Visualizer.drawSquare(x, z, image, rgb, 15);
-
-                int controlOneX = (int) (x - controlPoint.getGradient().getX());
-                int controlOneZ = (int) (z - controlPoint.getGradient().getY());
-
-                int controlTwoX = (int) (x + controlPoint.getGradient().getX());
-                int controlTwoZ = (int) (z + controlPoint.getGradient().getY());
-
-                Visualizer.drawSquare(controlOneX, controlOneZ, image, rgb, 10);
-                Visualizer.drawSquare(controlTwoX, controlTwoZ, image, rgb, 10);
-
-                image.getGraphics().drawLine(controlOneX, controlOneZ, controlTwoX, controlTwoZ);
-            }
-
-            MutableBoundingBox bbox = pathGenerator.getPathBox();
-            image.getGraphics().drawRect(bbox.x0 - searchRegionBlockMinX, bbox.z0 - searchRegionBlockMinX, bbox.x1 - bbox.x0, bbox.z1 - bbox.z0);*/
+            MutableBoundingBox bbox = pathGenerator.getBoundingBox();
+            g.drawRect(bbox.x0 - searchRegionBlockMinX, bbox.z0 - searchRegionBlockMinZ, bbox.x1 - bbox.x0, bbox.z1 - bbox.z0);
         }
     }
 

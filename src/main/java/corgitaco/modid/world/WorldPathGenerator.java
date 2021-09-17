@@ -2,6 +2,7 @@ package corgitaco.modid.world;
 
 import com.mojang.serialization.Codec;
 import corgitaco.modid.mixin.access.StructureAccess;
+import corgitaco.modid.mixin.access.UtilAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
 import corgitaco.modid.util.DataForChunk;
 import corgitaco.modid.world.path.IPathGenerator;
@@ -33,6 +34,8 @@ import net.minecraft.world.server.ServerWorld;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 import static corgitaco.modid.core.StructureRegionManager.*;
 
@@ -40,6 +43,8 @@ import static corgitaco.modid.core.StructureRegionManager.*;
 public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
     public static final boolean DEBUG = false;
+    private static final boolean MULTI_THREADED_NOISE_CACHE = true;
+    public static final Executor EXECUTOR = UtilAccess.invokeMakeExecutor("paths");
 
     public static final String[] NAMES = new String[]{
             "Perthlochry",
@@ -140,23 +145,26 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
         int range = 1;
 
+        if (MULTI_THREADED_NOISE_CACHE) {
+            multiThreadedNoiseCache(generator, currentRegionX, currentRegionZ, dataForLocation, range);
+        }
 
         // In cases such as buried treasure where there are 20k+ buried treasures in a given 3x3 region area,
         // creating a new Long2ReferenceOpenHashMap every chunk call & using a .putAll is very inefficient due to the number of entries.
         // So we've cut down performance cost by making this cache get created by region not every single chunk call.
 //        Long2ReferenceOpenHashMap<AdditionalStructureContext> surroundingRegionStructures = surroundingRegionStructureCachesForRegion.computeIfAbsent(currentRegionKey, (key) -> {
 //            Long2ReferenceOpenHashMap<AdditionalStructureContext> computedSurroundingRegionStructures = new Long2ReferenceOpenHashMap<>();
-            for (int regionX = currentRegionX - range; regionX <= currentRegionX + range; regionX++) {
-                for (int regionZ = currentRegionZ - range; regionZ <= currentRegionZ + range; regionZ++) {
-                    long regionKey = regionKey(regionX, regionZ);
+        for (int regionX = currentRegionX - range; regionX <= currentRegionX + range; regionX++) {
+            for (int regionZ = currentRegionZ - range; regionZ <= currentRegionZ + range; regionZ++) {
+                long regionKey = regionKey(regionX, regionZ);
 
-                    if (!completedStructureCacheRegions.contains(regionKey)) {
-                        collectRegionStructures(actualWorld, seed, generator.getBiomeSource(), structure, structureSeparationSettings, structuresByRegion, pathGeneratorsForRegion, dataForLocation, regionX, regionZ);
-                        completedStructureCacheRegions.add(regionKey);
-                    }
-//                    computedSurroundingRegionStructures.putAll(structuresByRegion.get(regionKey));
+                if (!completedStructureCacheRegions.contains(regionKey)) {
+                    collectRegionStructures(actualWorld, seed, generator.getBiomeSource(), structure, structureSeparationSettings, structuresByRegion, pathGeneratorsForRegion, dataForLocation, regionX, regionZ);
+                    completedStructureCacheRegions.add(regionKey);
                 }
+//                    computedSurroundingRegionStructures.putAll(structuresByRegion.get(regionKey));
             }
+        }
 //            return computedSurroundingRegionStructures;
 //        });
 
@@ -173,19 +181,96 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
         for (IPathGenerator<Structure<?>> pathGenerator : pathGenerators) {
             Long2ReferenceOpenHashMap<List<BlockPos>> chunkNodes = pathGenerator.getNodesByRegion().get(currentRegionKey);
-                if (chunkNodes.containsKey(currentChunk)) {
-                    for (BlockPos blockPos : chunkNodes.get(currentChunk)) {
-                        if (DEBUG) {
-                            buildMarker(world, blockPos.getX(), blockPos.getZ(), pathGenerator.debugState());
-                        }
-
-                        generatePath(world, random, stateProvider, blockPos);
+            if (chunkNodes.containsKey(currentChunk)) {
+                for (BlockPos blockPos : chunkNodes.get(currentChunk)) {
+                    if (DEBUG) {
+                        buildMarker(world, blockPos.getX(), blockPos.getZ(), pathGenerator.debugState());
                     }
+
+                    generatePath(world, random, stateProvider, blockPos);
+                }
                 generateLights(world, random, currentChunk, pathGenerator);
             }
         }
 
         return true;
+    }
+
+    private void multiThreadedNoiseCache(ChunkGenerator generator, int currentRegionX, int currentRegionZ, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, int range) {
+        int noiseCacheRange = range + 1;
+
+        CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> completableFuture = null;
+
+        for (int regionX = currentRegionX - noiseCacheRange; regionX <= currentRegionX + noiseCacheRange; regionX++) {
+            for (int regionZ = currentRegionZ - noiseCacheRange; regionZ <= currentRegionZ + noiseCacheRange; regionZ++) {
+                long regionKey = regionKey(regionX, regionZ);
+                CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> completableFuture1 = cacheFuture(generator, regionX, regionZ, regionKey, dataForLocation, 4);
+
+                if (completableFuture == null) {
+                    completableFuture = completableFuture1;
+                } else {
+                    completableFuture.thenCombine(completableFuture1, (existing, newCache) -> {
+                        existing.putAll(newCache);
+                        return existing;
+                    });
+                }
+            }
+        }
+        dataForLocation.putAll(completableFuture.join());
+    }
+
+    private CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> cacheFuture(ChunkGenerator generator, int currentRegionX, int currentRegionZ, long currentRegionKey, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, int sections) {
+        int activeMinChunkX = regionToChunk(currentRegionX);
+        int activeMinChunkZ = regionToChunk(currentRegionZ);
+
+        int activeMaxChunkX = regionToMaxChunk(currentRegionX);
+        int activeMaxChunkZ = regionToMaxChunk(currentRegionZ);
+
+        int activeXSize = activeMaxChunkX - activeMinChunkX;
+        int activeZSize = activeMaxChunkZ - activeMinChunkZ;
+
+
+        if (dataForLocation.containsKey(currentRegionKey)) {
+            return CompletableFuture.completedFuture(dataForLocation);
+        }
+        CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> completableFuture = null;
+
+        double regionXSectionSize = (double) activeXSize / sections;
+        double regionZSectionSize = (double) activeZSize / sections;
+
+        for (int xThread = 0; xThread < sections / 2; xThread++) {
+            for (int zThread = 0; zThread < sections / 2; zThread++) {
+                int minX = (int) ((regionXSectionSize * xThread) + activeMinChunkX);
+                int minZ = (int) ((regionZSectionSize * zThread) + activeMinChunkZ);
+
+                CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> future = CompletableFuture.supplyAsync(() -> {
+                    long time = System.currentTimeMillis();
+
+                    Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForChunk = new Long2ReferenceOpenHashMap<>();
+
+                    for (int xChunk = minX; xChunk < minX + regionXSectionSize; xChunk++) {
+                        for (int zChunk = minZ; zChunk < minZ + regionZSectionSize; zChunk++) {
+                            int height = generator.getBaseHeight(SectionPos.sectionToBlockCoord(xChunk) + 8, SectionPos.sectionToBlockCoord(zChunk) + 8, Heightmap.Type.OCEAN_FLOOR_WG);
+                            dataForChunk.computeIfAbsent(currentRegionKey, (key) -> new Long2ReferenceOpenHashMap<>()).put(ChunkPos.asLong(xChunk, zChunk), new DataForChunk(generator.getBiomeSource().getNoiseBiome((xChunk << 2) + 2, 60, (zChunk << 2) + 2), height));
+                        }
+                    }
+                    System.out.println(Thread.currentThread().getName() + " finished in " + (System.currentTimeMillis() - time) + "ms");
+
+                    return dataForChunk;
+                }, EXECUTOR);
+
+                if (completableFuture == null) {
+                    completableFuture = future;
+                } else {
+                    completableFuture = completableFuture.thenCombine(future, ((dataForChunk, dataForChunk2) -> {
+                        dataForChunk.putAll(dataForChunk2);
+                        return dataForChunk;
+                    }));
+                }
+
+            }
+        }
+        return completableFuture;
     }
 
     private void generatePath(ISeedReader world, Random random, WeightedBlockStateProvider stateProvider, BlockPos blockPos) {
@@ -304,6 +389,25 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                     pathGenerators.computeIfAbsent(chunkToRegionKey(structurePosFromGrid), (key) -> new ArrayList<>()).add(pathGenerator);
                     pathGenerators.computeIfAbsent(chunkToRegionKey(neighborStructurePosFromGrid), (key) -> new ArrayList<>()).add(pathGenerator);
                 }
+//                IPathGenerator pathGenerator = new PathfindingPathGenerator(world, getPosFromChunk(structurePosFromGrid), getPosFromChunk(neighborStructurePosFromGrid), structureRandom, biomeSource);
+//                if(pathGenerator.createdSuccessfully()) {
+//                    MutableBoundingBox box = pathGenerator.getBoundingBox();
+//
+//                    int minRegionX = blockToRegion(box.x0);
+//                    int maxRegionX = blockToRegion(box.x1);
+//
+//                    int minRegionZ = blockToRegion(box.z0);
+//                    int maxRegionZ = blockToRegion(box.z1);
+//
+//                    for (int regionX = minRegionX; regionX <= maxRegionX; regionX++) {
+//                        for (int regionZ = minRegionZ; regionZ <= maxRegionZ; regionZ++) {
+//                            pathGenerators.computeIfAbsent(regionKey(regionX, regionZ), (key) -> new ArrayList<>()).add(pathGenerator);
+//                        }
+//                    }
+//                }
+
+                /*pathGenerators.computeIfAbsent(chunkToRegionKey(structurePosFromGrid), (key) -> new ArrayList<>()).add(pathGenerator);
+                pathGenerators.computeIfAbsent(chunkToRegionKey(neighborStructurePosFromGrid), (key) -> new ArrayList<>()).add(pathGenerator);*/
             }
         }
     }
