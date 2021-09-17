@@ -200,10 +200,11 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         }
     }
 
-    private void generateLights(ISeedReader world, Random random, long currentChunk, IPathGenerator pathGenerator) {
-        Long2ReferenceOpenHashMap<List<BlockPos>> lightNodes = pathGenerator.getLightsByRegion();
-        if (lightNodes.containsKey(currentChunk)) {
-            for (BlockPos blockPos : lightNodes.get(currentChunk)) {
+    private void generateLights(ISeedReader world, Random random, long currentChunk, IPathGenerator<Structure<?>> pathGenerator) {
+        Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> lightNodes = pathGenerator.getLightsByRegion();
+        long regionKey = chunkToRegionKey(currentChunk);
+        if (lightNodes.containsKey(regionKey)) {
+            for (BlockPos blockPos : lightNodes.get(regionKey).getOrDefault(currentChunk, new ArrayList<>())) {
                 BlockPos lightPos = blockPos.offset(2, world.getHeight(Heightmap.Type.WORLD_SURFACE_WG, blockPos.getX(), blockPos.getZ()), 2);
                 TemplateManager templatemanager = world.getLevel().getStructureManager();
                 Template template = templatemanager.get(new ResourceLocation("village/plains/plains_lamp_1"));

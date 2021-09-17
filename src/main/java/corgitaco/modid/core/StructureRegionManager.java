@@ -51,11 +51,11 @@ public class StructureRegionManager {
         try {
             return file.exists() ? CompressedStreamTools.read(file) : null;
         } catch (IOException e) {
-           return null;
+            return null;
         }
     }
 
-    public Object2ObjectArrayMap<Structure<?>, LongSet> getAllRegionStructurePositions(long regionPos) {
+    public Object2ObjectArrayMap<Structure<?>, LongSet> allRegionStructurePositions(long regionPos) {
         StructureRegion structureRegion = structureRegions.computeIfAbsent(regionPos, (regionKey) -> new StructureRegion());
         CompoundNBT regionNbt = getRegionNbt(regionPos);
         return regionNbt != null ? structureRegion.allRegionStructurePositionsFromFile(regionNbt) : structureRegion.getRegionStructures();

@@ -17,7 +17,10 @@ public class StructureRegion {
 
     private final LoadedAll<Object2ObjectArrayMap<Structure<?>, LongSet>> regionStructures = new LoadedAll<>(new Object2ObjectArrayMap<>());
     private final LoadedAll<Map<PathKey, PathfindingPathGenerator>> pathGenerators = new LoadedAll<>(new HashMap<>());
+    private final LoadedAll<Map<PathKey, PathfindingPathGenerator>> pathGeneratorNeighbors = new LoadedAll<>(new HashMap<>());
     private final LoadedAll<Long2ReferenceOpenHashMap<Set<PathKey>>> pathGeneratorReferences = new LoadedAll<>(new Long2ReferenceOpenHashMap<>());
+
+
     private boolean arePathsLoaded;
 
     public LongSet regionStructurePositionsFromFile(CompoundNBT nbt, Structure<?> structure) {
@@ -136,6 +139,10 @@ public class StructureRegion {
 
     public void pathsAreLoaded() {
         this.arePathsLoaded = true;
+    }
+
+    public LoadedAll<Map<PathKey, PathfindingPathGenerator>> getPathGeneratorNeighbors() {
+        return pathGeneratorNeighbors;
     }
 
     public static class LoadedAll<T> {
