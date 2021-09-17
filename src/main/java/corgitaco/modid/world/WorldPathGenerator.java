@@ -15,6 +15,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.util.*;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.world.ISeedReader;
 import net.minecraft.world.biome.BiomeManager;
@@ -299,8 +300,24 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                 structureRandom.setLargeFeatureWithSalt(seed, ChunkPos.getX(structurePosFromGrid) + ChunkPos.getX(neighborStructurePosFromGrid), ChunkPos.getZ(structurePosFromGrid) + ChunkPos.getZ(neighborStructurePosFromGrid), structureSeparationSettings.salt());
 
                 IPathGenerator pathGenerator = new PathfindingPathGenerator(world, getPosFromChunk(structurePosFromGrid), getPosFromChunk(neighborStructurePosFromGrid), structureRandom, biomeSource);
-                pathGenerators.computeIfAbsent(chunkToRegionKey(structurePosFromGrid), (key) -> new ArrayList<>()).add(pathGenerator);
-                pathGenerators.computeIfAbsent(chunkToRegionKey(neighborStructurePosFromGrid), (key) -> new ArrayList<>()).add(pathGenerator);
+                if(pathGenerator.createdSuccessfully()) {
+                    MutableBoundingBox box = pathGenerator.getBoundingBox();
+
+                    int minRegionX = blockToRegion(box.x0);
+                    int maxRegionX = blockToRegion(box.x1);
+
+                    int minRegionZ = blockToRegion(box.z0);
+                    int maxRegionZ = blockToRegion(box.z1);
+
+                    for (int regionX = minRegionX; regionX <= maxRegionX; regionX++) {
+                        for (int regionZ = minRegionZ; regionZ <= maxRegionZ; regionZ++) {
+                            pathGenerators.computeIfAbsent(regionKey(regionX, regionZ), (key) -> new ArrayList<>()).add(pathGenerator);
+                        }
+                    }
+                }
+
+                /*pathGenerators.computeIfAbsent(chunkToRegionKey(structurePosFromGrid), (key) -> new ArrayList<>()).add(pathGenerator);
+                pathGenerators.computeIfAbsent(chunkToRegionKey(neighborStructurePosFromGrid), (key) -> new ArrayList<>()).add(pathGenerator);*/
             }
         }
     }

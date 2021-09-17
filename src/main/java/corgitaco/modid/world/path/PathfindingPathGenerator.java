@@ -9,6 +9,7 @@ import net.minecraft.util.RegistryKey;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.world.biome.Biome;
@@ -34,10 +35,13 @@ public class PathfindingPathGenerator implements IPathGenerator {
     private final BlockPos endPos;
     private final SimplexNoiseGenerator simplex;
     private final Registry<Biome> biomeRegistry;
+    private final MutableBoundingBox pathBox;
     private final int startY, endY;
+    private boolean createdPath = false;
 
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
+    private static final int BOUNDING_BOX_EXPANSION = 3;
 
     public PathfindingPathGenerator(ServerWorld world, BlockPos startPos, BlockPos endPos, Random random, BiomeProvider biomeSource) {
         this.biomeSource = biomeSource;
@@ -47,12 +51,29 @@ public class PathfindingPathGenerator implements IPathGenerator {
         this.startPos = startPos;
         this.endPos = endPos;
 
+        this.pathBox = pathBox(startPos, endPos, BOUNDING_BOX_EXPANSION);
+
         this.simplex = new SimplexNoiseGenerator(new Random(world.getSeed()));
 
         biomeRegistry = world.registryAccess().registry(Registry.BIOME_REGISTRY).orElse(null);
 
         generatePath();
     }
+
+    public static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos) {
+        return pathBox(startPos, endPos, 0);
+    }
+
+    public static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos, int expansion) {
+        int startPosX = startPos.getX();
+        int startPosZ = startPos.getZ();
+
+        int endPosX = endPos.getX();
+        int endPosZ = endPos.getZ();
+
+        return new MutableBoundingBox(Math.min(startPosX, endPosX) - expansion, 0, Math.min(startPosZ, endPosZ) - expansion, Math.max(startPosX, endPosX) + expansion, 0, Math.max(startPosZ, endPosZ) + expansion);
+    }
+
 
     private void generatePath(){
         if (ADDITIONAL_DEBUG_DETAILS) {
@@ -80,15 +101,26 @@ public class PathfindingPathGenerator implements IPathGenerator {
             }
 
             List<BlockPos> positions = averagePoints(basePos);
+            for(BlockPos pos : positions){
+                expandBoundingBoxToFit(pos);
+            }
+
             for(int i = 0; i < positions.size() - 1; i++){
                 BlockPos start = positions.get(i);
                 BlockPos end = positions.get(i + 1);
 
-                for(float t = 0.0f; t < 1; t += 0.2f){
-                    addBlockPos(PathGenerator.getLerpedBlockPos(start, end, t));
+                int dx = Math.abs(start.getX() - end.getZ());
+                int dz = Math.abs(start.getZ() - end.getZ());
+
+                int steps = (int) Math.ceil(Math.max(dx, dz) / 3.0f);
+                if(steps <= 1) steps = 2;
+
+                for(int step = 0; step < steps; step++){
+                    addBlockPos(PathGenerator.getLerpedBlockPos(start, end, (float) step / steps));
                 }
             }
             addBlockPos(positions.get(basePos.size() - 1));
+            createdPath = true;
         } else {
             if (ADDITIONAL_DEBUG_DETAILS) {
                 System.out.println("No path found!");
@@ -141,6 +173,20 @@ public class PathfindingPathGenerator implements IPathGenerator {
 
         if(found) return tiles.get(endChunk);
         else return null;
+    }
+
+    private void expandBoundingBoxToFit(BlockPos pos){
+        if(pathBox.x0 > pos.getX() - BOUNDING_BOX_EXPANSION){
+            pathBox.x0 = pos.getX() - BOUNDING_BOX_EXPANSION;
+        }else if(pathBox.x1 < pos.getX() + BOUNDING_BOX_EXPANSION){
+            pathBox.x1 = pos.getX() + BOUNDING_BOX_EXPANSION;
+        }
+
+        if(pathBox.z0 > pos.getZ() - BOUNDING_BOX_EXPANSION){
+            pathBox.z0 = pos.getZ() - BOUNDING_BOX_EXPANSION;
+        }else if(pathBox.z1 < pos.getZ() + BOUNDING_BOX_EXPANSION){
+            pathBox.z1 = pos.getZ() + BOUNDING_BOX_EXPANSION;
+        }
     }
 
     private List<BlockPos> averagePoints(List<BlockPos> pos){
@@ -215,7 +261,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
             biomeKey = biomeRegistry.getResourceKey(biome).orElse(null);
 
         Set<Type> biomeTypes = BiomeDictionary.getTypes(biomeKey);
-        if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU) || testHeight(startY, endY, chunkX * 16 + 8, chunkZ * 16 + 8, chunkGenerator)) {
+        if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU)/* || testHeight(startY, endY, chunkX * 16 + 8, chunkZ * 16 + 8, chunkGenerator) */) {
             return 10000;
         }else if(containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)){
             return 3; //Will make river crossing try to be shorter
@@ -266,6 +312,16 @@ public class PathfindingPathGenerator implements IPathGenerator {
     @Override
     public BlockState debugState() {
         return Blocks.RED_CONCRETE.defaultBlockState();
+    }
+
+    @Override
+    public MutableBoundingBox getBoundingBox() {
+        return pathBox;
+    }
+
+    @Override
+    public boolean createdSuccessfully() {
+        return true;
     }
 
     public static class Tile implements Comparable {

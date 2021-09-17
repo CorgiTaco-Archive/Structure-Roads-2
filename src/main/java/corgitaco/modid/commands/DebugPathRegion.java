@@ -97,7 +97,7 @@ public class DebugPathRegion {
         int lineDrawZ = drawZ % 100;
 
         while(lineDrawX < range){
-            String s = String.valueOf(lineDrawX);
+            String s = String.valueOf(lineDrawX + searchRegionBlockMinX);
             g.setColor(Color.GRAY);
             g.drawLine(lineDrawX, 0, lineDrawX, range);
             g.setColor(Color.WHITE);
@@ -108,7 +108,7 @@ public class DebugPathRegion {
 
         //Y/Z-Axis
         while(lineDrawZ < range){
-            String s = String.valueOf(lineDrawZ);
+            String s = String.valueOf(lineDrawZ + searchRegionBlockMinZ);
             g.setColor(Color.GRAY);
             g.drawLine(0, lineDrawZ, range, lineDrawZ);
             g.setColor(Color.WHITE);
@@ -154,28 +154,10 @@ public class DebugPathRegion {
                             Visualizer.drawSquare(x, z, image, rgb, 3);
                         }
                     }
+                    g.setColor(color);
 
-                    image.getGraphics().setColor(color);
-
-                    /*for(PathGenerator.PointWithGradient controlPoint : pathGenerator.getPoints()){
-                        int x = controlPoint.getPos().getX() - searchRegionBlockMinX;
-                        int z = controlPoint.getPos().getZ() - searchRegionBlockMinX;
-                        Visualizer.drawSquare(x, z, image, rgb, 15);
-
-                        int controlOneX = (int) (x - controlPoint.getGradient().getX());
-                        int controlOneZ = (int) (z - controlPoint.getGradient().getY());
-
-                        int controlTwoX = (int) (x + controlPoint.getGradient().getX());
-                        int controlTwoZ = (int) (z + controlPoint.getGradient().getY());
-
-                        Visualizer.drawSquare(controlOneX, controlOneZ, image, rgb, 10);
-                        Visualizer.drawSquare(controlTwoX, controlTwoZ, image, rgb, 10);
-
-                        image.getGraphics().drawLine(controlOneX, controlOneZ, controlTwoX, controlTwoZ);
-                    }
-
-                    MutableBoundingBox bbox = pathGenerator.getPathBox();
-                    image.getGraphics().drawRect(bbox.x0 - searchRegionBlockMinX, bbox.z0 - searchRegionBlockMinX, bbox.x1 - bbox.x0, bbox.z1 - bbox.z0);*/
+                    MutableBoundingBox bbox = pathGenerator.getBoundingBox();
+                    g.drawRect(bbox.x0 - searchRegionBlockMinX, bbox.z0 - searchRegionBlockMinZ, bbox.x1 - bbox.x0, bbox.z1 - bbox.z0);
                 }
             }
         }

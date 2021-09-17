@@ -56,6 +56,16 @@ public class PathGenerator implements IPathGenerator{
         return debugState;
     }
 
+    @Override
+    public MutableBoundingBox getBoundingBox() {
+        return pathBox;
+    }
+
+    @Override
+    public boolean createdSuccessfully() {
+        return true;
+    }
+
     public Long2ObjectArrayMap<List<BlockPos>> getLightsByChunk() {
         return lightsByChunk;
     }
