@@ -3,9 +3,9 @@ package corgitaco.modid.world;
 import com.mojang.serialization.Codec;
 import corgitaco.modid.mixin.access.StructureAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
+import corgitaco.modid.util.DataForChunk;
 import corgitaco.modid.world.path.IPathGenerator;
 import corgitaco.modid.world.path.PathContext;
-import corgitaco.modid.world.path.PathGenerator;
 import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
@@ -133,6 +133,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         LongSet completedLinkedRegions = ((PathContext.Access) world.getLevel()).getPathContext().getCompletedLinkedRegionsForLevel();
         Long2ObjectArrayMap<Long2ObjectArrayMap<AdditionalStructureContext>> surroundingRegionStructureCachesForRegion = ((PathContext.Access) world.getLevel()).getPathContext().getSurroundingRegionStructureCachesForRegionForLevel();
         Long2ObjectArrayMap<List<IPathGenerator>> pathGeneratorsForRegion = ((PathContext.Access) world.getLevel()).getPathContext().getPathGenerators();
+        Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForLocation = ((PathContext.Access) world.getLevel()).getPathContext().getDataCache();
 
         ServerWorld actualWorld = world.getLevel();
 
@@ -149,7 +150,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                     long regionKey = regionKey(regionX, regionZ);
 
                     if (!completedStructureCacheRegions.contains(regionKey)) {
-                        collectRegionStructures(actualWorld, seed, generator.getBiomeSource(), structure, structureSeparationSettings, structuresByRegion, pathGeneratorsForRegion, regionX, regionZ);
+                        collectRegionStructures(actualWorld, seed, generator.getBiomeSource(), structure, structureSeparationSettings, structuresByRegion, pathGeneratorsForRegion, dataForLocation, regionX, regionZ);
                         completedStructureCacheRegions.add(regionKey);
                     }
 //                    computedSurroundingRegionStructures.putAll(structuresByRegion.get(regionKey));
@@ -225,7 +226,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         }
     }
 
-    private static void collectRegionStructures(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> village, StructureSeparationSettings structureSeparationSettings, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> regionPositions, Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators, int regionX, int regionZ) {
+    private static void collectRegionStructures(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> village, StructureSeparationSettings structureSeparationSettings, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> regionPositions, Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForLocation, int regionX, int regionZ) {
         long startTime = System.currentTimeMillis();
 
         int spacing = structureSeparationSettings.spacing();
@@ -242,7 +243,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         int activeMaxGridX = Math.floorDiv(activeMaxChunkX, spacing);
         int activeMaxGridZ = Math.floorDiv(activeMaxChunkZ, spacing);
 
-        scanRegionStructureGridAndLinkNeighbors(world, seed, biomeSource, village, structureSeparationSettings, spacing, regionPositions, pathGenerators, activeMinGridX, activeMinGridZ, activeMaxGridX, activeMaxGridZ);
+        scanRegionStructureGridAndLinkNeighbors(world, seed, biomeSource, village, structureSeparationSettings, spacing, regionPositions, pathGenerators, dataForLocation, activeMinGridX, activeMinGridZ, activeMaxGridX, activeMaxGridZ);
 
         System.out.println("Generated links and paths for region (" + regionX + ", " + regionZ + ") in " + (System.currentTimeMillis() - startTime) + " ms");
     }
@@ -251,7 +252,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
     /**
      * Creates the cache of all structure positions for the given region by iterating over the structure grid which should guarantee a structure position per iteration.
      */
-    private static void scanRegionStructureGridAndLinkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, int spacing, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> regionPositions, Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators, int activeMinGridX, int activeMinGridZ, int activeMaxGridX, int activeMaxGridZ) {
+    private static void scanRegionStructureGridAndLinkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, int spacing, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> regionPositions, Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForLocation, int activeMinGridX, int activeMinGridZ, int activeMaxGridX, int activeMaxGridZ) {
         Random random = new Random(seed);
         int neighborRange = 1;
 
@@ -270,12 +271,12 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                 structureData.put(structurePosFromGrid, additionalStructureContext);
 
 
-                linkNeighbors(world, seed, biomeSource, structure, structureSeparationSettings, regionPositions, pathGenerators, NAMES[random.nextInt(NAMES.length - 1)], neighborRange, structureGridX, structureGridZ, structurePosFromGrid, additionalStructureContext);
+                linkNeighbors(world, seed, biomeSource, structure, structureSeparationSettings, regionPositions, pathGenerators, dataForLocation, NAMES[random.nextInt(NAMES.length - 1)], neighborRange, structureGridX, structureGridZ, structurePosFromGrid, additionalStructureContext);
             }
         }
     }
 
-    private static void linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> regionPositions, Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext) {
+    private static void linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, Long2ReferenceOpenHashMap<Long2ObjectArrayMap<AdditionalStructureContext>> regionPositions, Long2ObjectArrayMap<List<IPathGenerator>> pathGenerators, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext) {
         for (int neighborStructureGridX = -neighborRange; neighborStructureGridX < neighborRange; neighborStructureGridX++) {
             for (int neighborStructureGridZ = -neighborRange; neighborStructureGridZ < neighborRange; neighborStructureGridZ++) {
                 long neighborStructurePosFromGrid = getStructurePosFromGrid(structureGridX + neighborStructureGridX, structureGridZ + neighborStructureGridZ, seed, biomeSource, structure, structureSeparationSettings);
@@ -299,7 +300,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                 SharedSeedRandom structureRandom = new SharedSeedRandom();
                 structureRandom.setLargeFeatureWithSalt(seed, ChunkPos.getX(structurePosFromGrid) + ChunkPos.getX(neighborStructurePosFromGrid), ChunkPos.getZ(structurePosFromGrid) + ChunkPos.getZ(neighborStructurePosFromGrid), structureSeparationSettings.salt());
 
-                IPathGenerator pathGenerator = new PathfindingPathGenerator(world, getPosFromChunk(structurePosFromGrid), getPosFromChunk(neighborStructurePosFromGrid), structureRandom, biomeSource);
+                IPathGenerator pathGenerator = new PathfindingPathGenerator(world, getPosFromChunk(structurePosFromGrid), getPosFromChunk(neighborStructurePosFromGrid), structureRandom, biomeSource, dataForLocation);
                 if(pathGenerator.createdSuccessfully()) {
                     MutableBoundingBox box = pathGenerator.getBoundingBox();
 
