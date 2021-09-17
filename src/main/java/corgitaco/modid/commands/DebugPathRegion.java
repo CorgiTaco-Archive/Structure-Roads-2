@@ -4,27 +4,20 @@ package corgitaco.modid.commands;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import corgitaco.debug.Visualizer;
-import corgitaco.modid.world.WorldPathGenerator;
 import corgitaco.modid.world.path.IPathGenerator;
 import corgitaco.modid.world.path.PathContext;
-import corgitaco.modid.world.path.PathGenerator;
+import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
-import net.minecraft.util.RegistryKey;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.util.text.TranslationTextComponent;
-import net.minecraft.world.biome.Biome;
-import net.minecraft.world.biome.Biomes;
+import net.minecraft.world.gen.feature.structure.Structure;
 import net.minecraft.world.server.ServerWorld;
-import net.minecraftforge.common.BiomeDictionary;
 import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.ForgeRegistry;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -35,7 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 
-import static corgitaco.modid.world.WorldPathGenerator.regionKey;
+import static corgitaco.modid.core.StructureRegionManager.*;
 
 public class DebugPathRegion {
 
@@ -56,8 +49,8 @@ public class DebugPathRegion {
         Vector3d position = source.getPosition();
         int currentChunkX = SectionPos.blockToSectionCoord((int) position.x);
         int currentChunkZ = SectionPos.blockToSectionCoord((int) position.z);
-        int regionX = WorldPathGenerator.chunkToRegion(currentChunkX);
-        int regionZ = WorldPathGenerator.chunkToRegion(currentChunkZ);
+        int regionX = chunkToRegion(currentChunkX);
+        int regionZ = chunkToRegion(currentChunkZ);
 
 
         int searchRange = 1;
@@ -69,11 +62,11 @@ public class DebugPathRegion {
         int maxSearchRangeRegionZ = regionZ + searchRange;
 
 
-        int minSearchChunkX = WorldPathGenerator.regionToChunk(minSearchRangeRegionX);
-        int minSearchChunkZ = WorldPathGenerator.regionToChunk(minSearchRangeRegionZ);
+        int minSearchChunkX = regionToChunk(minSearchRangeRegionX);
+        int minSearchChunkZ = regionToChunk(minSearchRangeRegionZ);
 
-        int maxChunkX = WorldPathGenerator.regionToMaxChunk(maxSearchRangeRegionX);
-        int maxChunkZ = WorldPathGenerator.regionToMaxChunk(maxSearchRangeRegionZ);
+        int maxChunkX = regionToMaxChunk(maxSearchRangeRegionX);
+        int maxChunkZ = regionToMaxChunk(maxSearchRangeRegionZ);
 
         int xLengthChunks = maxChunkX - minSearchChunkX;
         int zLengthChunks = maxChunkZ - minSearchChunkZ;
@@ -81,8 +74,8 @@ public class DebugPathRegion {
         int range = SectionPos.sectionToBlockCoord(xLengthChunks) + 16;
         BufferedImage image = new BufferedImage(range, range, BufferedImage.TYPE_INT_RGB);
 
-        int searchRegionBlockMinX = WorldPathGenerator.regionToBlock(minSearchRangeRegionX);
-        int searchRegionBlockMinZ = WorldPathGenerator.regionToBlock(minSearchRangeRegionZ);
+        int searchRegionBlockMinX = regionToBlock(minSearchRangeRegionX);
+        int searchRegionBlockMinZ = regionToBlock(minSearchRangeRegionZ);
 
         int drawX = (int) position.x - searchRegionBlockMinX;
         int drawZ = (int) position.z - searchRegionBlockMinZ;
@@ -97,7 +90,7 @@ public class DebugPathRegion {
         int lineDrawZ = drawZ % 100;
 
         while(lineDrawX < range){
-            String s = String.valueOf(lineDrawX + searchRegionBlockMinX);
+            String s = String.valueOf(lineDrawX);
             g.setColor(Color.GRAY);
             g.drawLine(lineDrawX, 0, lineDrawX, range);
             g.setColor(Color.WHITE);
@@ -108,7 +101,7 @@ public class DebugPathRegion {
 
         //Y/Z-Axis
         while(lineDrawZ < range){
-            String s = String.valueOf(lineDrawZ + searchRegionBlockMinZ);
+            String s = String.valueOf(lineDrawZ);
             g.setColor(Color.GRAY);
             g.drawLine(0, lineDrawZ, range, lineDrawZ);
             g.setColor(Color.WHITE);
@@ -121,44 +114,13 @@ public class DebugPathRegion {
         g.drawLine(0, drawZ, range, drawZ);
         g.drawLine(drawX, 0, drawX, range);
 
+
+
+
+
         for (int xSearch = minSearchRangeRegionX; xSearch <= maxSearchRangeRegionX; xSearch++) {
             for (int zSearch = minSearchRangeRegionZ; zSearch <= maxSearchRangeRegionZ; zSearch++) {
-                long regionKey = regionKey(xSearch, zSearch);
-                LongSet completedRegionStructureCachesForLevel = pathContext.getContextCacheForLevel().get(regionKey).keySet();
-
-                for (Long aLong : completedRegionStructureCachesForLevel) {
-                    paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, new Color(0, 200, 0).getRGB(), new ChunkPos(aLong));
-                }
-
-                List<IPathGenerator> pathGenerators = pathContext.getPathGenerators().get(regionKey);
-
-                Random random = new Random(regionKey);
-                for (IPathGenerator pathGenerator : pathGenerators) {
-                    Color color = new Color(random.nextInt(251) + 5, random.nextInt(251) + 5, random.nextInt(251) + 5);
-                    int rgb = color.getRGB();
-
-//                    long startStructureChunk = pathGenerator.getStartStructureChunk();
-//                    long endStructureChunk = pathGenerator.getEndStructureChunk();
-//
-//                    ChunkPos startChunkPos = new ChunkPos(startStructureChunk);
-//                    ChunkPos endChunkPos = new ChunkPos(endStructureChunk);
-//
-//                    paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, color, startChunkPos);
-//                    paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, color, endChunkPos);
-
-                    for (List<BlockPos> value : pathGenerator.getNodesByChunk().values()) {
-                        for (BlockPos blockPos : value) {
-                            int x = blockPos.getX() - searchRegionBlockMinX;
-                            int z = blockPos.getZ() - searchRegionBlockMinZ;
-
-                            Visualizer.drawSquare(x, z, image, rgb, 3);
-                        }
-                    }
-                    g.setColor(color);
-
-                    MutableBoundingBox bbox = pathGenerator.getBoundingBox();
-                    g.drawRect(bbox.x0 - searchRegionBlockMinX, bbox.z0 - searchRegionBlockMinZ, bbox.x1 - bbox.x0, bbox.z1 - bbox.z0);
-                }
+                paintRegion(pathContext, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);
             }
         }
 
@@ -176,6 +138,64 @@ public class DebugPathRegion {
         }
 
         return 1;
+    }
+
+    private static void paintRegion(PathContext pathContext, int range, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, int xSearch, int zSearch) {
+        long regionKey = regionKey(xSearch, zSearch);
+        LongSet completedRegionStructureCachesForLevel = pathContext.getContextCacheForLevel().get(regionKey).keySet();
+
+        for (Long aLong : completedRegionStructureCachesForLevel) {
+            paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, new Color(0, 200, 0).getRGB(), new ChunkPos(aLong));
+        }
+
+        List<IPathGenerator<Structure<?>>> pathGenerators = pathContext.getPathGenerators().get(regionKey);
+
+        Random random = new Random(regionKey);
+        for (IPathGenerator<Structure<?>> pathGenerator : pathGenerators) {
+            Color color = new Color(random.nextInt(251) + 5, random.nextInt(251) + 5, random.nextInt(251) + 5);
+            int rgb = color.getRGB();
+
+//                    long startStructureChunk = pathGenerator.getStartStructureChunk();
+//                    long endStructureChunk = pathGenerator.getEndStructureChunk();
+//
+//                    ChunkPos startChunkPos = new ChunkPos(startStructureChunk);
+//                    ChunkPos endChunkPos = new ChunkPos(endStructureChunk);
+//
+//                    paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, color, startChunkPos);
+//                    paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, color, endChunkPos);
+
+            Long2ReferenceOpenHashMap<List<BlockPos>> blockPosList = pathGenerator.getNodesByRegion().get(regionKey);
+            for (List<BlockPos> value : blockPosList.values()) {
+                for (BlockPos blockPos : value) {
+                    int x = blockPos.getX() - searchRegionBlockMinX;
+                    int z = blockPos.getZ() - searchRegionBlockMinZ;
+
+                    Visualizer.drawSquare(x, z, image, rgb, 3);
+                }
+            }
+
+            image.getGraphics().setColor(color);
+
+            /*for(PathGenerator.PointWithGradient controlPoint : pathGenerator.getPoints()){
+                int x = controlPoint.getPos().getX() - searchRegionBlockMinX;
+                int z = controlPoint.getPos().getZ() - searchRegionBlockMinX;
+                Visualizer.drawSquare(x, z, image, rgb, 15);
+
+                int controlOneX = (int) (x - controlPoint.getGradient().getX());
+                int controlOneZ = (int) (z - controlPoint.getGradient().getY());
+
+                int controlTwoX = (int) (x + controlPoint.getGradient().getX());
+                int controlTwoZ = (int) (z + controlPoint.getGradient().getY());
+
+                Visualizer.drawSquare(controlOneX, controlOneZ, image, rgb, 10);
+                Visualizer.drawSquare(controlTwoX, controlTwoZ, image, rgb, 10);
+
+                image.getGraphics().drawLine(controlOneX, controlOneZ, controlTwoX, controlTwoZ);
+            }
+
+            MutableBoundingBox bbox = pathGenerator.getPathBox();
+            image.getGraphics().drawRect(bbox.x0 - searchRegionBlockMinX, bbox.z0 - searchRegionBlockMinX, bbox.x1 - bbox.x0, bbox.z1 - bbox.z0);*/
+        }
     }
 
     private static void paintChunk(int range, int searchRegionBlockMinX, int searchRegionBlockMinZ, BufferedImage image, int color, ChunkPos startChunkPos) {
