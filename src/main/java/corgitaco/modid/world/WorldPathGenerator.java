@@ -31,6 +31,7 @@ import net.minecraft.world.gen.feature.template.TemplateManager;
 import net.minecraft.world.gen.settings.StructureSeparationSettings;
 import net.minecraft.world.server.ServerWorld;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -199,27 +200,30 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
     private void multiThreadedNoiseCache(ChunkGenerator generator, int currentRegionX, int currentRegionZ, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, int range) {
         int noiseCacheRange = range + 1;
 
-        CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> completableFuture = null;
+        List<CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>>> yes = new ArrayList<>();
 
         for (int regionX = currentRegionX - noiseCacheRange; regionX <= currentRegionX + noiseCacheRange; regionX++) {
             for (int regionZ = currentRegionZ - noiseCacheRange; regionZ <= currentRegionZ + noiseCacheRange; regionZ++) {
                 long regionKey = regionKey(regionX, regionZ);
-                CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> completableFuture1 = cacheFuture(generator, regionX, regionZ, regionKey, dataForLocation, 4);
+                List<CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>>> futures = cacheFuture(generator, regionX, regionZ, regionKey, dataForLocation, 4);
 
-                if (completableFuture == null) {
-                    completableFuture = completableFuture1;
-                } else {
-                    completableFuture.thenCombine(completableFuture1, (existing, newCache) -> {
-                        existing.putAll(newCache);
-                        return existing;
-                    });
+                if (futures == null) {
+                    continue;
                 }
+                yes.addAll(futures);
+
             }
         }
-        dataForLocation.putAll(completableFuture.join());
+
+        CompletableFuture.allOf(yes.toArray(new CompletableFuture[0])).join();
     }
 
-    private CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> cacheFuture(ChunkGenerator generator, int currentRegionX, int currentRegionZ, long currentRegionKey, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, int sections) {
+    @Nullable
+    private List<CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>>> cacheFuture(ChunkGenerator generator, int currentRegionX, int currentRegionZ, long currentRegionKey, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, int sections) {
+        if (dataForLocation.containsKey(currentRegionKey)) {
+            return null;
+        }
+
         int activeMinChunkX = regionToChunk(currentRegionX);
         int activeMinChunkZ = regionToChunk(currentRegionZ);
 
@@ -230,10 +234,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         int activeZSize = activeMaxChunkZ - activeMinChunkZ;
 
 
-        if (dataForLocation.containsKey(currentRegionKey)) {
-            return CompletableFuture.completedFuture(dataForLocation);
-        }
-        CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>> completableFuture = null;
+        List<CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>>> yes = new ArrayList<>();
 
         double regionXSectionSize = (double) activeXSize / sections;
         double regionZSectionSize = (double) activeZSize / sections;
@@ -257,20 +258,14 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                     System.out.println(Thread.currentThread().getName() + " finished in " + (System.currentTimeMillis() - time) + "ms");
 
                     return dataForChunk;
-                }, EXECUTOR);
+                }, EXECUTOR).whenComplete(((newMap, throwable) -> {
+                    dataForLocation.putAll(newMap);
+                }));
 
-                if (completableFuture == null) {
-                    completableFuture = future;
-                } else {
-                    completableFuture = completableFuture.thenCombine(future, ((dataForChunk, dataForChunk2) -> {
-                        dataForChunk.putAll(dataForChunk2);
-                        return dataForChunk;
-                    }));
-                }
-
+                yes.add(future);
             }
         }
-        return completableFuture;
+        return yes;
     }
 
     private void generatePath(ISeedReader world, Random random, WeightedBlockStateProvider stateProvider, BlockPos blockPos) {
