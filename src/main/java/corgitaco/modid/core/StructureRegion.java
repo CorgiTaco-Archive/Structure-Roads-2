@@ -1,5 +1,6 @@
 package corgitaco.modid.core;
 
+import corgitaco.modid.structure.AdditionalStructureContext;
 import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
@@ -15,35 +16,42 @@ import java.util.stream.Collectors;
 
 public class StructureRegion {
 
-    private final LoadedAll<Object2ObjectArrayMap<Structure<?>, LongSet>> regionStructures = new LoadedAll<>(new Object2ObjectArrayMap<>());
+    private final LoadedAll<Object2ObjectArrayMap<Structure<?>, Long2ReferenceOpenHashMap<AdditionalStructureContext>>> regionStructures = new LoadedAll<>(new Object2ObjectArrayMap<>());
     private final LoadedAll<Map<PathKey, PathfindingPathGenerator>> pathGenerators = new LoadedAll<>(new HashMap<>());
     private final LoadedAll<Map<PathKey, PathfindingPathGenerator>> pathGeneratorNeighbors = new LoadedAll<>(new HashMap<>());
     private final LoadedAll<Long2ReferenceOpenHashMap<Set<PathKey>>> pathGeneratorReferences = new LoadedAll<>(new Long2ReferenceOpenHashMap<>());
+    private boolean generated = false;
 
 
     private boolean arePathsLoaded;
 
-    public LongSet regionStructurePositionsFromFile(CompoundNBT nbt, Structure<?> structure) {
+    public Long2ReferenceOpenHashMap<AdditionalStructureContext> regionStructurePositionsFromFile(CompoundNBT nbt, Structure<?> structure) {
         return regionStructures.o.computeIfAbsent(structure, (structure1 -> {
-            if (nbt.contains("structure_positions", 10)) {
-                CompoundNBT structurePositions = nbt.getCompound("structure_positions");
+            if (nbt.contains("structures", 10)) {
+                CompoundNBT structurePositions = nbt.getCompound("structures");
                 String key = Registry.STRUCTURE_FEATURE.getKey(structure).toString();
                 if (structurePositions.contains(key)) {
-                    return new LongOpenHashSet(structurePositions.getLongArray(key));
+                    CompoundNBT regionStructureContext = structurePositions.getCompound(key);
+                    Long2ReferenceOpenHashMap<AdditionalStructureContext> structures = new Long2ReferenceOpenHashMap<>();
+                    for (String locationKey : regionStructureContext.getAllKeys()) {
+                        structures.put(Long.parseLong(locationKey), new AdditionalStructureContext(regionStructureContext.getCompound(key)));
+                    }
+                    return structures;
                 }
             }
-            return new LongOpenHashSet();
+            return new Long2ReferenceOpenHashMap<>();
         }));
     }
 
-    public Object2ObjectArrayMap<Structure<?>, LongSet> allRegionStructurePositionsFromFile(CompoundNBT nbt) {
+    public Object2ObjectArrayMap<Structure<?>, Long2ReferenceOpenHashMap<AdditionalStructureContext>> allRegionStructurePositionsFromFile(CompoundNBT nbt) {
         if (!regionStructures.loadedAll) {
-            if (nbt.contains("structure_positions", 10)) {
-                CompoundNBT structurePositions = nbt.getCompound("structure_positions");
+            if (nbt.contains("structures", 10)) {
+                CompoundNBT structurePositions = nbt.getCompound("structures");
                 for (String key : structurePositions.getAllKeys()) {
-                    regionStructures.o.computeIfAbsent(Registry.STRUCTURE_FEATURE.get(new ResourceLocation(key)), (structure -> {
-                        return new LongOpenHashSet();
-                    })).addAll(new LongArraySet(structurePositions.getLongArray(key)));
+                    Long2ReferenceOpenHashMap<AdditionalStructureContext> structureToContext = regionStructures.o.computeIfAbsent(Registry.STRUCTURE_FEATURE.get(new ResourceLocation(key)), (structure -> {
+                        return new Long2ReferenceOpenHashMap<>();
+                    }));
+                    structureToContext.put(Long.parseLong(key), new AdditionalStructureContext(structurePositions.getCompound(key)));
                 }
             }
             this.regionStructures.loadAll();
@@ -98,9 +106,17 @@ public class StructureRegion {
         CompoundNBT structurePositions = new CompoundNBT();
         for (Structure<?> structure : this.regionStructures.o.keySet()) {
             String key = Registry.STRUCTURE_FEATURE.getKey(structure).toString();
-            structurePositions.putLongArray(key, this.regionStructures.o.get(structure).toLongArray());
+
+            CompoundNBT structureData = new CompoundNBT();
+            Long2ReferenceOpenHashMap<AdditionalStructureContext> additionalStructureContext = this.regionStructures.o.get(structure);
+
+            for (Long2ReferenceMap.Entry<AdditionalStructureContext> additionalStructureContextEntry : additionalStructureContext.long2ReferenceEntrySet()) {
+                long pos = additionalStructureContextEntry.getLongKey();
+                AdditionalStructureContext context = additionalStructureContextEntry.getValue();
+                structureData.put(Long.toString(pos), context.write());
+            }
         }
-        nbt.put("structure_positions", structurePositions);
+        nbt.put("structures", structurePositions);
 
         CompoundNBT pathGenerators = new CompoundNBT();
         this.pathGenerators.o.forEach((pathKey, pathfindingPathGenerator) -> {
@@ -120,8 +136,15 @@ public class StructureRegion {
         return nbt;
     }
 
+    public void generate(long regionPos) {
+        if (!generated) {
+            return;
+        }
 
-    public Object2ObjectArrayMap<Structure<?>, LongSet> getRegionStructures() {
+
+    }
+
+    public Object2ObjectArrayMap<Structure<?>, Long2ReferenceOpenHashMap<AdditionalStructureContext>> getRegionStructures() {
         return regionStructures.o;
     }
 
@@ -133,16 +156,17 @@ public class StructureRegion {
         return pathGeneratorReferences.o;
     }
 
-    public boolean arePathsLoaded() {
-        return arePathsLoaded;
+    public Map<PathKey, PathfindingPathGenerator> getPathGeneratorNeighbors() {
+        return pathGeneratorNeighbors.o;
     }
 
-    public void pathsAreLoaded() {
-        this.arePathsLoaded = true;
+    public boolean isGenerated() {
+        return generated;
     }
 
-    public LoadedAll<Map<PathKey, PathfindingPathGenerator>> getPathGeneratorNeighbors() {
-        return pathGeneratorNeighbors;
+    public boolean setGenerated() {
+        this.generated = true;
+        return this.generated;
     }
 
     public static class LoadedAll<T> {

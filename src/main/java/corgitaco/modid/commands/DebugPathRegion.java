@@ -4,8 +4,11 @@ package corgitaco.modid.commands;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import corgitaco.debug.Visualizer;
+import corgitaco.modid.core.StructureRegion;
+import corgitaco.modid.core.StructureRegionManager;
 import corgitaco.modid.world.path.IPathGenerator;
 import corgitaco.modid.world.path.PathContext;
+import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.command.CommandSource;
@@ -26,6 +29,8 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -44,7 +49,7 @@ public class DebugPathRegion {
 
         ServerWorld level = source.getLevel();
 
-        PathContext pathContext = ((PathContext.Access) level).getPathContext();
+        StructureRegionManager structureRegionManager = ((StructureRegionManager.Access) level).getStructureRegionManager();
 
 
         Vector3d position = source.getPosition();
@@ -118,7 +123,7 @@ public class DebugPathRegion {
 
         for (int xSearch = minSearchRangeRegionX; xSearch <= maxSearchRangeRegionX; xSearch++) {
             for (int zSearch = minSearchRangeRegionZ; zSearch <= maxSearchRangeRegionZ; zSearch++) {
-                paintRegion(pathContext, g, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);
+                paintRegion(structureRegionManager, level, g, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);
             }
         }
 
@@ -138,29 +143,25 @@ public class DebugPathRegion {
         return 1;
     }
 
-    private static void paintRegion(PathContext pathContext, Graphics g, int range, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, int xSearch, int zSearch) {
+    private static void paintRegion(StructureRegionManager regionManager, ServerWorld world, Graphics g, int range, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, int xSearch, int zSearch) {
         long regionKey = regionKey(xSearch, zSearch);
-        LongSet completedRegionStructureCachesForLevel = pathContext.getContextCacheForLevel().get(regionKey).keySet();
+        StructureRegion structureRegion = regionManager.generateWithStructure(world, regionKey, Structure.VILLAGE);
+        LongSet completedRegionStructureCachesForLevel = structureRegion.getRegionStructures().get(Structure.VILLAGE).keySet();
 
         for (Long aLong : completedRegionStructureCachesForLevel) {
             paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, new Color(0, 200, 0).getRGB(), new ChunkPos(aLong));
         }
 
-        List<IPathGenerator<Structure<?>>> pathGenerators = pathContext.getPathGenerators().get(regionKey);
 
         Random random = new Random(regionKey);
+        paintPathGenerators(g, image, searchRegionBlockMinX, searchRegionBlockMinZ, regionKey, structureRegion.pathGenerators().values(), random);
+        paintPathGenerators(g, image, searchRegionBlockMinX, searchRegionBlockMinZ, regionKey, structureRegion.getPathGeneratorNeighbors().values(), random);
+    }
+
+    private static void paintPathGenerators(Graphics g, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, long regionKey, Collection<PathfindingPathGenerator> pathGenerators, Random random) {
         for (IPathGenerator<Structure<?>> pathGenerator : pathGenerators) {
             Color color = new Color(random.nextInt(251) + 5, random.nextInt(251) + 5, random.nextInt(251) + 5);
             int rgb = color.getRGB();
-
-//                    long startStructureChunk = pathGenerator.getStartStructureChunk();
-//                    long endStructureChunk = pathGenerator.getEndStructureChunk();
-//
-//                    ChunkPos startChunkPos = new ChunkPos(startStructureChunk);
-//                    ChunkPos endChunkPos = new ChunkPos(endStructureChunk);
-//
-//                    paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, color, startChunkPos);
-//                    paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, color, endChunkPos);
 
             Long2ReferenceOpenHashMap<List<BlockPos>> blockPosList = pathGenerator.getNodesByRegion().get(regionKey);
             for (List<BlockPos> value : blockPosList.values()) {

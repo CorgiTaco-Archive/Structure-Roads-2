@@ -1,6 +1,6 @@
 package corgitaco.modid.mixin;
 
-import corgitaco.modid.world.path.PathContext;
+import corgitaco.modid.core.StructureRegionManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.RegistryKey;
 import net.minecraft.world.DimensionType;
@@ -20,17 +20,17 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 @Mixin(ServerWorld.class)
-public class MixinServerWorld implements PathContext.Access {
+public class MixinServerWorld implements StructureRegionManager.Access {
 
-    private PathContext pathContext;
+    private StructureRegionManager pathContext;
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void attachPathContext(MinecraftServer server, Executor executor, SaveFormat.LevelSave save, IServerWorldInfo worldInfo, RegistryKey<World> key, DimensionType dimensionType, IChunkStatusListener chunkStatusListener, ChunkGenerator generator, boolean debug, long seed, List<ISpecialSpawner> specialSpawners, boolean e, CallbackInfo ci) {
-        this.pathContext = new PathContext();
+        this.pathContext = new StructureRegionManager((ServerWorld) (Object) this);
     }
 
     @Override
-    public PathContext getPathContext() {
+    public StructureRegionManager getStructureRegionManager() {
         return pathContext;
     }
 }
