@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import corgitaco.modid.mixin.access.StructureAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
 import corgitaco.modid.util.DataForChunk;
+import corgitaco.modid.world.path.BisectionPathGenerator;
 import corgitaco.modid.world.path.IPathGenerator;
 import corgitaco.modid.world.path.PathContext;
 import corgitaco.modid.world.path.PathfindingPathGenerator;
@@ -169,7 +170,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
             }
         }
 
-        List<IPathGenerator> pathGenerators = pathGeneratorsForRegion.get(currentRegionKey);
+        List<IPathGenerator> pathGenerators = pathGeneratorsForRegion.computeIfAbsent(currentRegionKey, (key) -> new ArrayList<>());
 
         for (IPathGenerator pathGenerator : pathGenerators) {
             Long2ObjectArrayMap<List<BlockPos>> chunkNodes = pathGenerator.getNodesByChunk();
@@ -300,7 +301,8 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
                 SharedSeedRandom structureRandom = new SharedSeedRandom();
                 structureRandom.setLargeFeatureWithSalt(seed, ChunkPos.getX(structurePosFromGrid) + ChunkPos.getX(neighborStructurePosFromGrid), ChunkPos.getZ(structurePosFromGrid) + ChunkPos.getZ(neighborStructurePosFromGrid), structureSeparationSettings.salt());
 
-                IPathGenerator pathGenerator = new PathfindingPathGenerator(world, getPosFromChunk(structurePosFromGrid), getPosFromChunk(neighborStructurePosFromGrid), structureRandom, biomeSource, dataForLocation);
+                //IPathGenerator pathGenerator = new PathfindingPathGenerator(world, getPosFromChunk(structurePosFromGrid), getPosFromChunk(neighborStructurePosFromGrid), structureRandom, biomeSource, dataForLocation);
+                IPathGenerator pathGenerator = new BisectionPathGenerator(world, getPosFromChunk(structurePosFromGrid), getPosFromChunk(neighborStructurePosFromGrid), structureRandom, biomeSource);
                 if(pathGenerator.createdSuccessfully()) {
                     MutableBoundingBox box = pathGenerator.getBoundingBox();
 
