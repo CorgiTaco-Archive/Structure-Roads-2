@@ -1,6 +1,7 @@
 package corgitaco.modid.world;
 
 import com.mojang.serialization.Codec;
+import corgitaco.modid.Main;
 import corgitaco.modid.mixin.access.StructureAccess;
 import corgitaco.modid.mixin.access.UtilAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
@@ -44,7 +45,8 @@ import static corgitaco.modid.core.StructureRegionManager.*;
 public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
     public static final boolean DEBUG = false;
-    private static final boolean MULTI_THREADED_NOISE_CACHE = true;
+    private static final boolean MULTI_THREADED_NOISE_CACHE = false;
+    private static final boolean USE_NOISE_CACHE = false;
     public static final Executor EXECUTOR = UtilAccess.invokeMakeExecutor("paths");
 
     public static final String[] NAMES = new String[]{
@@ -146,8 +148,8 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
         int range = 1;
 
-        if (MULTI_THREADED_NOISE_CACHE) {
-            multiThreadedNoiseCache(generator, currentRegionX, currentRegionZ, dataForLocation, range);
+        if (USE_NOISE_CACHE) {
+            computeNoiseCache(generator, currentRegionX, currentRegionZ, dataForLocation, range);
         }
 
         // In cases such as buried treasure where there are 20k+ buried treasures in a given 3x3 region area,
@@ -197,25 +199,55 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         return true;
     }
 
-    private void multiThreadedNoiseCache(ChunkGenerator generator, int currentRegionX, int currentRegionZ, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, int range) {
+    private void computeNoiseCache(ChunkGenerator generator, int currentRegionX, int currentRegionZ, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, int range) {
         int noiseCacheRange = range + 1;
+        long beforeCacheCompute = System.currentTimeMillis();
 
-        List<CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>>> yes = new ArrayList<>();
+        if (MULTI_THREADED_NOISE_CACHE) {
+            List<CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>>> yes = new ArrayList<>();
 
-        for (int regionX = currentRegionX - noiseCacheRange; regionX <= currentRegionX + noiseCacheRange; regionX++) {
-            for (int regionZ = currentRegionZ - noiseCacheRange; regionZ <= currentRegionZ + noiseCacheRange; regionZ++) {
-                long regionKey = regionKey(regionX, regionZ);
-                List<CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>>> futures = cacheFuture(generator, regionX, regionZ, regionKey, dataForLocation, 4);
+            for (int regionX = currentRegionX - noiseCacheRange; regionX <= currentRegionX + noiseCacheRange; regionX++) {
+                for (int regionZ = currentRegionZ - noiseCacheRange; regionZ <= currentRegionZ + noiseCacheRange; regionZ++) {
+                    long regionKey = regionKey(regionX, regionZ);
+                    List<CompletableFuture<Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>>>> futures = cacheFuture(generator, regionX, regionZ, regionKey, dataForLocation, 4);
 
-                if (futures == null) {
-                    continue;
+                    if (futures == null) {
+                        continue;
+                    }
+                    yes.addAll(futures);
+
                 }
-                yes.addAll(futures);
-
             }
-        }
+            CompletableFuture.allOf(yes.toArray(new CompletableFuture[0])).join();
+            Main.LOGGER.info("Multithreaded cache compute took: " + (System.currentTimeMillis() - beforeCacheCompute) + "ms");
 
-        CompletableFuture.allOf(yes.toArray(new CompletableFuture[0])).join();
+        } else {
+            for (int regionX = currentRegionX - noiseCacheRange; regionX <= currentRegionX + noiseCacheRange; regionX++) {
+                for (int regionZ = currentRegionZ - noiseCacheRange; regionZ <= currentRegionZ + noiseCacheRange; regionZ++) {
+                    long regionKey = regionKey(regionX, regionZ);
+                    int activeMinChunkX = regionToChunk(currentRegionX);
+                    int activeMinChunkZ = regionToChunk(currentRegionZ);
+
+                    int activeMaxChunkX = regionToMaxChunk(currentRegionX);
+                    int activeMaxChunkZ = regionToMaxChunk(currentRegionZ);
+
+                    int activeXSize = activeMaxChunkX - activeMinChunkX;
+                    int activeZSize = activeMaxChunkZ - activeMinChunkZ;
+
+
+                    for (int xChunk = activeMinChunkX; xChunk < activeMaxChunkX; xChunk++) {
+                        for (int zChunk = activeMinChunkZ; zChunk < activeMaxChunkZ; zChunk++) {
+                            int height = generator.getBaseHeight(SectionPos.sectionToBlockCoord(xChunk) + 8, SectionPos.sectionToBlockCoord(zChunk) + 8, Heightmap.Type.OCEAN_FLOOR_WG);
+                            if (!dataForLocation.containsKey(regionKey)) {
+                                dataForLocation.computeIfAbsent(regionKey, (key) -> new Long2ReferenceOpenHashMap<>()).put(ChunkPos.asLong(xChunk, zChunk), new DataForChunk(generator.getBiomeSource().getNoiseBiome((xChunk << 2) + 2, 60, (zChunk << 2) + 2), height));
+                            }
+                        }
+                    }
+
+                }
+            }
+            Main.LOGGER.info("Singlethreaded cache compute took: " + (System.currentTimeMillis() - beforeCacheCompute) + "ms");
+        }
     }
 
     @Nullable

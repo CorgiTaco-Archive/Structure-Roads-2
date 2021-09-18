@@ -55,6 +55,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
+    private static final boolean NOISE = false;
     private static final int BOUNDING_BOX_EXPANSION = 3;
     private boolean dispose = false;
 
@@ -314,7 +315,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
             return 10000;
         } else {
             int height = chunkData.getHeight(generator, chunkX * 16 + 8, chunkZ * 16 + 8);
-            if (testHeight(startPoint.getPos().getY(), endPoint.getPos().getY(), height, generator.getSeaLevel())) {
+            if (NOISE && testHeight(startPoint.getPos().getY(), endPoint.getPos().getY(), height, generator.getSeaLevel())) {
                 return 10000;
             } else {
                 if (containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)) {
