@@ -4,10 +4,10 @@ package corgitaco.modid.commands;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import corgitaco.debug.Visualizer;
+import corgitaco.modid.core.StructureData;
 import corgitaco.modid.core.StructureRegion;
 import corgitaco.modid.core.StructureRegionManager;
 import corgitaco.modid.world.path.IPathGenerator;
-import corgitaco.modid.world.path.PathContext;
 import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -30,7 +30,6 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -92,6 +91,8 @@ public class DebugPathRegion {
         //Draw axes to make it easy to locate things
         //X-axis
         Graphics g = image.getGraphics();
+
+
         int lineDrawX = drawX % 100;
         int lineDrawZ = drawZ % 100;
 
@@ -120,9 +121,19 @@ public class DebugPathRegion {
         g.drawLine(0, drawZ, range, drawZ);
         g.drawLine(drawX, 0, drawX, range);
 
+        int gridLineThickness = 25;
 
         for (int xSearch = minSearchRangeRegionX; xSearch <= maxSearchRangeRegionX; xSearch++) {
             for (int zSearch = minSearchRangeRegionZ; zSearch <= maxSearchRangeRegionZ; zSearch++) {
+                int gridDrawX = regionToBlock(xSearch - minSearchRangeRegionX);
+                int gridDrawZ = regionToBlock(zSearch - minSearchRangeRegionZ);
+                g.setColor(Color.RED);
+
+                for (int thickness = -gridLineThickness; thickness < gridLineThickness; thickness++) {
+                    g.drawLine(gridDrawX, 0, gridDrawX, range);
+                    g.drawLine(0, gridDrawZ, range, gridDrawZ);
+                }
+
                 paintRegion(structureRegionManager, level, g, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);
             }
         }
@@ -145,8 +156,9 @@ public class DebugPathRegion {
 
     private static void paintRegion(StructureRegionManager regionManager, ServerWorld world, Graphics g, int range, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, int xSearch, int zSearch) {
         long regionKey = regionKey(xSearch, zSearch);
-        StructureRegion structureRegion = regionManager.generateWithStructure(world, regionKey, Structure.VILLAGE);
-        LongSet completedRegionStructureCachesForLevel = structureRegion.getRegionStructures().get(Structure.VILLAGE).keySet();
+        StructureRegion structureRegion = regionManager.getStructureRegion(regionKey);
+        StructureData structureData = structureRegion.structureData(Structure.VILLAGE);
+        LongSet completedRegionStructureCachesForLevel = structureData.getLocationContextData(true).keySet();
 
         for (Long aLong : completedRegionStructureCachesForLevel) {
             paintChunk(range, searchRegionBlockMinX, searchRegionBlockMinZ, image, new Color(0, 200, 0).getRGB(), new ChunkPos(aLong));
@@ -154,8 +166,8 @@ public class DebugPathRegion {
 
 
         Random random = new Random(regionKey);
-        paintPathGenerators(g, image, searchRegionBlockMinX, searchRegionBlockMinZ, regionKey, structureRegion.pathGenerators().values(), random);
-        paintPathGenerators(g, image, searchRegionBlockMinX, searchRegionBlockMinZ, regionKey, structureRegion.getPathGeneratorNeighbors().values(), random);
+        paintPathGenerators(g, image, searchRegionBlockMinX, searchRegionBlockMinZ, regionKey, structureData.getPathGenerators(true).values(), random);
+        paintPathGenerators(g, image, searchRegionBlockMinX, searchRegionBlockMinZ, regionKey, structureData.getPathGeneratorNeighbors().values(), random);
     }
 
     private static void paintPathGenerators(Graphics g, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, long regionKey, Collection<PathfindingPathGenerator> pathGenerators, Random random) {

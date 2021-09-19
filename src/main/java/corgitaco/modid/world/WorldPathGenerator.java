@@ -2,7 +2,7 @@ package corgitaco.modid.world;
 
 import com.mojang.serialization.Codec;
 import corgitaco.modid.Main;
-import corgitaco.modid.core.StructureRegion;
+import corgitaco.modid.core.StructureData;
 import corgitaco.modid.core.StructureRegionManager;
 import corgitaco.modid.mixin.access.UtilAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
@@ -71,9 +71,9 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
         Structure<?> structure = Structure.VILLAGE;
         ServerWorld level = world.getLevel();
         StructureRegionManager structureRegionManager = ((StructureRegionManager.Access) level).getStructureRegionManager();
-        StructureRegion currentRegion = structureRegionManager.generateWithStructure(level, currentRegionKey, structure);
+        StructureData currentRegionStructureData = structureRegionManager.getStructureRegion(currentRegionKey).structureData(structure);
 
-        Long2ReferenceOpenHashMap<AdditionalStructureContext> currentRegionStructures = currentRegion.getRegionStructures().get(structure);
+        Long2ReferenceOpenHashMap<AdditionalStructureContext> currentRegionStructures = currentRegionStructureData.getLocationContextData(true);
 
         if (DEBUG) {
             if (currentRegionStructures.containsKey(currentChunk)) {
@@ -81,8 +81,8 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
             }
         }
 
-        generatePaths(world, random, pos, stateProvider, currentChunk, currentRegionKey, currentRegion.pathGenerators().values());
-        generatePaths(world, random, pos, stateProvider, currentChunk, currentRegionKey, currentRegion.getPathGeneratorNeighbors().values());
+        generatePaths(world, random, pos, stateProvider, currentChunk, currentRegionKey, currentRegionStructureData.getPathGenerators(true).values());
+        generatePaths(world, random, pos, stateProvider, currentChunk, currentRegionKey, currentRegionStructureData.getPathGeneratorNeighbors().values());
 
         return true;
     }
