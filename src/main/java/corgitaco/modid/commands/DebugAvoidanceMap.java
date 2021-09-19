@@ -2,6 +2,8 @@ package corgitaco.modid.commands;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.ArgumentBuilder;
+import corgitaco.modid.world.WorldPathGenerator;
+import corgitaco.modid.world.path.PathGeneratorUtil;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
 import net.minecraft.util.RegistryKey;
@@ -76,10 +78,7 @@ public class DebugAvoidanceMap {
     }
 
     private static boolean shouldAvoid(ServerWorld world, int chunkX, int chunkZ){
-        Biome biome = world.getBiome(new BlockPos(chunkX * 16 + 8, 60, chunkZ * 16 + 8));
-        if(biome.getBiomeCategory().equals(Biome.Category.OCEAN))
-            return true;
-        return biome.getDepth() > 0.5f;
+        return !PathGeneratorUtil.canPathPassThrough(world, new BlockPos(chunkX * 16 + 8, 60, chunkZ * 16 + 8));
     }
 
     static {

@@ -1,6 +1,6 @@
 package corgitaco.modid.world.path;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
+/*import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.math.BlockPos;
@@ -13,13 +13,13 @@ import net.minecraft.world.server.ServerWorld;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.Random;*/
 
-public class BisectionPathGenerator implements IPathGenerator{
-    private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
+public class BisectionPathGenerator /*implements IPathGenerat*/{
+    /*private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
     private final Long2ObjectArrayMap<List<BlockPos>> lightsByChunk = new Long2ObjectArrayMap<>();
     private final ServerWorld world;
-    private final MutableBoundingBox boundingBox;
+    private MutableBoundingBox boundingBox;
     private boolean rejected = false;
     BlockPos startPos, endPos;
     private static final int BOUNDING_BOX_EXPANSION = 3;
@@ -29,6 +29,16 @@ public class BisectionPathGenerator implements IPathGenerator{
         this.startPos = startPos;
         this.endPos = endPos;
         this.world = world;
+
+        if(!PathGeneratorUtil.canPathPassThrough(world, startPos)){
+            rejected = true;
+            return;
+        }
+
+        if(!PathGeneratorUtil.canPathPassThrough(world, endPos)){
+            rejected = true;
+            return;
+        }
 
         boundingBox = pathBox(startPos, endPos, BOUNDING_BOX_EXPANSION);
 
@@ -59,11 +69,16 @@ public class BisectionPathGenerator implements IPathGenerator{
     }
 
     private void split(BlockPos startPos, BlockPos endPos, int depth){
+        if(nSamples > 10000){
+            rejected = true;
+            return;
+        }
+
         int dx = endPos.getX() - startPos.getX();
         int dz = endPos.getZ() - startPos.getZ();
 
         int squaredDist = dx * dx + dz * dz;
-        if(squaredDist < 256 || depth > 15)
+        if(squaredDist < 256 || depth > 10)
             return;
 
         BlockPos.Mutable middlePos = bisect(startPos, endPos).mutable();
@@ -74,7 +89,9 @@ public class BisectionPathGenerator implements IPathGenerator{
         int m = 0;
         boolean notValid;
         BlockPos.Mutable middlePosCopy = new BlockPos.Mutable(middlePos.getX(), 0, middlePos.getZ());
-        while(notValid = !canPassThroughPos(middlePos) && m < 5){
+        nSamples++;
+        while(notValid = !PathGeneratorUtil.canPathPassThrough(world, middlePos) && m < 5){
+            nSamples++;
             middlePos.move(shiftX, 0, shiftZ);
             m++;
         }
@@ -82,9 +99,11 @@ public class BisectionPathGenerator implements IPathGenerator{
         if(notValid){
             middlePos = middlePosCopy;
             m = 0;
-            while(notValid = !canPassThroughPos(middlePos) && m < 5){
+            nSamples++;
+            while(notValid = !PathGeneratorUtil.canPathPassThrough(world, middlePos) && m < 5){
                 middlePos.move(-shiftX, 0, -shiftZ);
                 m++;
+                nSamples++;
             }
         }
 
@@ -134,17 +153,6 @@ public class BisectionPathGenerator implements IPathGenerator{
         return ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
     }
 
-    private boolean canPassThroughPos(BlockPos pos){
-        nSamples++;
-        int height = getHeight(world, pos);
-
-        return (height > 63 && height < 100);
-    }
-
-    private static int getHeight(ServerWorld world, BlockPos pos){
-        return world.getChunkSource().generator.getBaseHeight(pos.getX(), pos.getZ(), Heightmap.Type.OCEAN_FLOOR_WG);
-    }
-
     @Override
     public boolean createdSuccessfully() {
         return !rejected;
@@ -168,5 +176,5 @@ public class BisectionPathGenerator implements IPathGenerator{
     @Override
     public MutableBoundingBox getBoundingBox() {
         return boundingBox;
-    }
+    }*/
 }

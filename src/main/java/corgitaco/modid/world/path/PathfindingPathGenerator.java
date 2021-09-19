@@ -42,7 +42,8 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
             return pathfindingPathGenerator.saveRegion;
         }), CodecUtil.BOUNDING_BOX_CODEC.fieldOf("pathBox").forGetter(pathfindingPathGenerator -> {
             return pathfindingPathGenerator.pathBox;
-        })).apply(builder, PathfindingPathGenerator::new);
+        }), Codec.INT.fieldOf("minY").forGetter(p -> p.minY),
+            Codec.INT.fieldOf("maxY").forGetter(p -> p.maxY)).apply(builder, PathfindingPathGenerator::new);
     });
 
 
@@ -53,6 +54,9 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
     private SimplexNoiseGenerator simplex;
     private final long saveRegion;
     private final MutableBoundingBox pathBox;
+    //private final int startY, endY;
+    private final int minY, maxY;
+    private boolean createdPath = false;
 
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
@@ -60,7 +64,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
     private static final int BOUNDING_BOX_EXPANSION = 3;
     private boolean dispose = false;
 
-    public PathfindingPathGenerator(Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Map<Long, Map<Long, List<BlockPos>>> nodesByRegion, long saveRegion, MutableBoundingBox pathBox) {
+    public PathfindingPathGenerator(Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Map<Long, Map<Long, List<BlockPos>>> nodesByRegion, long saveRegion, MutableBoundingBox pathBox, int minY, int maxY) {
         this.startPoint = startPoint;
         this.endPoint = endPoint;
         this.saveRegion = saveRegion;
@@ -68,6 +72,9 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
             this.nodesByRegion.put(regionkey.longValue(), new Long2ReferenceOpenHashMap<>(positionsByChunk));
         });
         this.pathBox = pathBox;
+
+        this.minY = minY;
+        this.maxY = maxY;
     }
 
     public PathfindingPathGenerator(ServerWorld world, Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion) {
@@ -77,7 +84,10 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         this.pathBox = pathBox(startPoint.getPos(), endPoint.getPos(), BOUNDING_BOX_EXPANSION);
 
         this.simplex = new SimplexNoiseGenerator(new Random(world.getSeed()));
-
+        int startY = startPoint.getPos().getY();
+        int endY = endPoint.getPos().getY();
+        minY = Math.max(world.getSeaLevel(), Math.min(startY, endY) - 10);
+        maxY = Math.max(world.getSeaLevel(), Math.max(startY, endY) + 10);
 
         generatePath(dataForRegion, generator, world.registryAccess().registry(Registry.BIOME_REGISTRY).orElse(null));
 
@@ -186,7 +196,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
         boolean found = false;
         while (!tilesToCheck.isEmpty()) {
-            if (nSamples > 10000) break; //To not get stuck if goal is completely inaccesible
+            if (nSamples > 2000) break; //To not get stuck if goal is completely inaccesible
             Tile currentTile = tilesToCheck.poll();
 
             if (currentTile.pos == endChunk) {
@@ -316,7 +326,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
             return 10000;
         } else {
             int height = chunkData.getHeight(generator, chunkX * 16 + 8, chunkZ * 16 + 8);
-            if (NOISE && testHeight(startPoint.getPos().getY(), endPoint.getPos().getY(), height, generator.getSeaLevel())) {
+            if (NOISE && testHeight(minY, maxY, height, generator.getSeaLevel())) {
                 return 10000;
             } else {
                 if (containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)) {
@@ -351,9 +361,9 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 //        }
     }
 
-    public static boolean testHeight(int startY, int endY, int x, int z, ChunkGenerator generator) {
+    public static boolean testHeight(int minHeight, int maxHeight, int x, int z, ChunkGenerator generator) {
         int baseHeight = getHeight(x, z, generator);
-        return baseHeight <= startY + 10 && baseHeight >= generator.getSeaLevel() && baseHeight >= endY;
+        return baseHeight >= minHeight && baseHeight <= maxHeight;
     }
 
     public static boolean testHeight(int startY, int endY, int height, int seaLevel) {
@@ -383,7 +393,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
     @Override
     public boolean createdSuccessfully() {
-        return true;
+        return createdPath;
     }
 
     @Override
@@ -419,7 +429,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
     public static class Tile implements Comparable {
         private Tile bestPrev = null;
         private int distFromStart = Integer.MAX_VALUE;
-        private float distFromGoal = Float.MAX_VALUE;
+        private int distFromGoal = Integer.MAX_VALUE;
         private boolean active = false;
         private final int weight;
         private final long pos;
@@ -450,7 +460,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
             int dx = x - ChunkPos.getX(goal);
             int dz = z - ChunkPos.getZ(goal);
-            distFromGoal = (float) Math.sqrt(dx * dx + dz * dz);
+            distFromGoal = Math.abs(dx) + Math.abs(dz);
             this.distFromStart = distFromStart;
         }
     }

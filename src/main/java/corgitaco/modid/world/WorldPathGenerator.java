@@ -53,6 +53,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
     private static final boolean MULTI_THREADED_NOISE_CACHE = false;
     private static final boolean USE_NOISE_CACHE = false;
     public static final Executor EXECUTOR = UtilAccess.invokeMakeExecutor("paths");
+    private static int totalTimeSpent = 0;
 
     public WorldPathGenerator(Codec<NoFeatureConfig> codec) {
         super(codec);
