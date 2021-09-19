@@ -87,7 +87,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
 
     private void generatePaths(ISeedReader world, Random random, BlockPos pos, WeightedBlockStateProvider stateProvider, long currentChunk, long currentRegionKey, Collection<PathfindingPathGenerator> values) {
         for (IPathGenerator<Structure<?>> pathGenerator : values) {
-            if (pathGenerator.getBoundingBox().intersects(pos.getX(), pos.getX(), pos.getZ(), pos.getZ())) {
+            if (pathGenerator.getBoundingBox().intersects(pos.getX(), pos.getZ(), pos.getX(), pos.getZ())) {
                 Long2ReferenceOpenHashMap<Set<BlockPos>> chunkNodes = pathGenerator.getNodesByRegion().get(currentRegionKey);
                 if (chunkNodes.containsKey(currentChunk)) {
                     for (BlockPos blockPos : chunkNodes.get(currentChunk)) {
