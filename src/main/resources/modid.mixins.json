@@ -5,8 +5,10 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "modid.refmap.json",
   "mixins": [
+    "MixinChunkMap",
     "MixinCommands",
     "MixinMinecraftServer",
+    "MixinServerChunkProvider",
     "MixinServerWorld",
     "access.BiomeGenerationSettingsAccess",
     "access.ChunkManagerAccess",

@@ -1,5 +1,7 @@
 package corgitaco.modid.core;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import net.minecraft.nbt.CompoundNBT;
 import net.minecraft.util.ResourceLocation;
@@ -13,7 +15,9 @@ public class StructureRegion {
     private final Object2ObjectArrayMap<Structure<?>, StructureData> dataByStructure;
     private final long pos;
     private final ServerWorld world;
-    private boolean arePathsLoaded;
+    private final LongSet loadedChunks = new LongOpenHashSet();
+    private final LongSet neighborLoadedChunks = new LongOpenHashSet();
+    private boolean saved = false;
 
     public StructureRegion(long pos, ServerWorld world){
         this.pos = pos;
@@ -29,6 +33,10 @@ public class StructureRegion {
 
     public StructureData structureData(Structure<?> structure) {
         return dataByStructure.computeIfAbsent(structure, (structure1) -> new StructureData(this, structure));
+    }
+
+    public Object2ObjectArrayMap<Structure<?>, StructureData> getDataByStructure() {
+        return dataByStructure;
     }
 
     public CompoundNBT saveTag() {
@@ -56,5 +64,21 @@ public class StructureRegion {
 
     public long getPos() {
         return pos;
+    }
+
+    public LongSet getLoadedChunks() {
+        return loadedChunks;
+    }
+
+    public boolean isSaved() {
+        return saved;
+    }
+
+    public void setSaved(boolean saved) {
+        this.saved = saved;
+    }
+
+    public LongSet getNeighborLoadedChunks() {
+        return neighborLoadedChunks;
     }
 }

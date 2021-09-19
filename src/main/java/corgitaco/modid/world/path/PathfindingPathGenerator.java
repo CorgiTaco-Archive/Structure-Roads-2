@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import corgitaco.modid.util.CodecUtil;
 import corgitaco.modid.util.DataForChunk;
+import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongIterable;
@@ -18,7 +19,6 @@ import net.minecraft.util.registry.Registry;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.Heightmap;
-import net.minecraft.world.gen.NoiseChunkGenerator;
 import net.minecraft.world.gen.SimplexNoiseGenerator;
 import net.minecraft.world.gen.feature.structure.Structure;
 import net.minecraft.world.server.ServerWorld;
@@ -36,19 +36,32 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
             return pathfindingPathGenerator.startPoint;
         }), Point.POINT_STRUCTURE_CODEC.fieldOf("end").forGetter(pathfindingPathGenerator -> {
             return pathfindingPathGenerator.endPoint;
-        }), Codec.unboundedMap(Codec.LONG, Codec.unboundedMap(Codec.LONG, BlockPos.CODEC.listOf())).fieldOf("nodesByRegion").forGetter(pathfindingPathGenerator -> {
-            return new HashMap<>(pathfindingPathGenerator.nodesByRegion);
+        }), Codec.unboundedMap(Codec.STRING, Codec.unboundedMap(Codec.STRING, BlockPos.CODEC.listOf())).fieldOf("nodesByRegion").forGetter(pathfindingPathGenerator -> {
+            Map<String, Map<String, List<BlockPos>>> serializable = new HashMap<>();
+
+            for (Long2ReferenceMap.Entry<Long2ReferenceOpenHashMap<Set<BlockPos>>> entry : pathfindingPathGenerator.nodesByRegion.long2ReferenceEntrySet()) {
+                Long2ReferenceOpenHashMap<Set<BlockPos>> chunks = entry.getValue();
+
+                HashMap<String, List<BlockPos>> serializableChunks = new HashMap<>();
+                for (Long2ReferenceMap.Entry<Set<BlockPos>> chunkEntry : chunks.long2ReferenceEntrySet()) {
+                    serializableChunks.put(Long.toString(chunkEntry.getLongKey()), new ArrayList<>(chunkEntry.getValue()));
+                }
+                serializable.put(Long.toString(entry.getLongKey()), serializableChunks);
+            }
+            return serializable;
         }), Codec.LONG.fieldOf("saveRegion").forGetter(pathfindingPathGenerator -> {
             return pathfindingPathGenerator.saveRegion;
         }), CodecUtil.BOUNDING_BOX_CODEC.fieldOf("pathBox").forGetter(pathfindingPathGenerator -> {
             return pathfindingPathGenerator.pathBox;
-        }), Codec.INT.fieldOf("minY").forGetter(p -> p.minY),
-            Codec.INT.fieldOf("maxY").forGetter(p -> p.maxY)).apply(builder, PathfindingPathGenerator::new);
+        }), Codec.INT.fieldOf("minY").forGetter(p -> {
+            return p.minY;
+        }), Codec.INT.fieldOf("maxY").forGetter(p -> {
+            return p.maxY;
+        })).apply(builder, PathfindingPathGenerator::createFromSerializer);
     });
 
-
-    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> nodesByRegion = new Long2ReferenceOpenHashMap<>();
-    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> lightsByRegion = new Long2ReferenceOpenHashMap<>();
+    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> nodesByRegion = new Long2ReferenceOpenHashMap<>();
+    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> lightsByRegion = new Long2ReferenceOpenHashMap<>();
     private final Point<Structure<?>> startPoint;
     private final Point<Structure<?>> endPoint;
     private SimplexNoiseGenerator simplex;
@@ -64,7 +77,11 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
     private static final int BOUNDING_BOX_EXPANSION = 3;
     private boolean dispose = false;
 
-    public PathfindingPathGenerator(Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Map<Long, Map<Long, List<BlockPos>>> nodesByRegion, long saveRegion, MutableBoundingBox pathBox, int minY, int maxY) {
+    public static PathfindingPathGenerator createFromSerializer(Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Map<String, Map<String, List<BlockPos>>> nodesByRegionSerializable, long saveRegion, MutableBoundingBox pathBox, int minY, int maxY) {
+        return new PathfindingPathGenerator(startPoint, endPoint, serializeNodesByRegion(nodesByRegionSerializable), saveRegion, pathBox, minY, maxY);
+    }
+
+    public PathfindingPathGenerator(Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Map<Long, Map<Long, Set<BlockPos>>> nodesByRegion, long saveRegion, MutableBoundingBox pathBox, int minY, int maxY) {
         this.startPoint = startPoint;
         this.endPoint = endPoint;
         this.saveRegion = saveRegion;
@@ -93,9 +110,9 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
         int lastSize = 0;
         long saveRegion = Long.MIN_VALUE;
-        for (Long2ReferenceOpenHashMap.Entry<Long2ReferenceOpenHashMap<List<BlockPos>>> Long2ReferenceOpenHashMapEntry : nodesByRegion.long2ReferenceEntrySet()) {
+        for (Long2ReferenceOpenHashMap.Entry<Long2ReferenceOpenHashMap<Set<BlockPos>>> Long2ReferenceOpenHashMapEntry : nodesByRegion.long2ReferenceEntrySet()) {
             long regionKey = Long2ReferenceOpenHashMapEntry.getLongKey();
-            Long2ReferenceOpenHashMap<List<BlockPos>> chunkEntries = Long2ReferenceOpenHashMapEntry.getValue();
+            Long2ReferenceOpenHashMap<Set<BlockPos>> chunkEntries = Long2ReferenceOpenHashMapEntry.getValue();
 
             int size = chunkEntries.size();
             if (size > lastSize) {
@@ -152,11 +169,11 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
             }
 
             List<BlockPos> positions = averagePoints(basePos);
-            for(BlockPos pos : positions){
+            for (BlockPos pos : positions) {
                 expandBoundingBoxToFit(pos);
             }
 
-            for(int i = 0; i < positions.size() - 1; i++){
+            for (int i = 0; i < positions.size() - 1; i++) {
                 BlockPos start = positions.get(i);
                 BlockPos end = positions.get(i + 1);
 
@@ -165,7 +182,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
                 int steps = (int) Math.ceil(Math.max(dx, dz) / 3.0f);
 
-                for(int step = 0; step < steps; step++){
+                for (int step = 0; step < steps; step++) {
                     addBlockPos(PathGenerator.getLerpedBlockPos(start, end, (float) step / steps));
                 }
             }
@@ -224,16 +241,16 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         else return null;
     }
 
-    private void expandBoundingBoxToFit(BlockPos pos){
-        if(pathBox.x0 > pos.getX() - BOUNDING_BOX_EXPANSION){
+    private void expandBoundingBoxToFit(BlockPos pos) {
+        if (pathBox.x0 > pos.getX() - BOUNDING_BOX_EXPANSION) {
             pathBox.x0 = pos.getX() - BOUNDING_BOX_EXPANSION;
-        }else if(pathBox.x1 < pos.getX() + BOUNDING_BOX_EXPANSION){
+        } else if (pathBox.x1 < pos.getX() + BOUNDING_BOX_EXPANSION) {
             pathBox.x1 = pos.getX() + BOUNDING_BOX_EXPANSION;
         }
 
-        if(pathBox.z0 > pos.getZ() - BOUNDING_BOX_EXPANSION){
+        if (pathBox.z0 > pos.getZ() - BOUNDING_BOX_EXPANSION) {
             pathBox.z0 = pos.getZ() - BOUNDING_BOX_EXPANSION;
-        }else if(pathBox.z1 < pos.getZ() + BOUNDING_BOX_EXPANSION){
+        } else if (pathBox.z1 < pos.getZ() + BOUNDING_BOX_EXPANSION) {
             pathBox.z1 = pos.getZ() + BOUNDING_BOX_EXPANSION;
         }
     }
@@ -261,7 +278,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         lightsByRegion.computeIfAbsent(regionKey, (key) -> {
             return new Long2ReferenceOpenHashMap<>();
         }).computeIfAbsent(chunkKey, (key) -> {
-            return new ArrayList<>();
+            return new HashSet<>();
         }).add(pos);
     }
 
@@ -271,7 +288,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         nodesByRegion.computeIfAbsent(regionKey, (key) -> {
             return new Long2ReferenceOpenHashMap<>();
         }).computeIfAbsent(chunkKey, (key) -> {
-            return new ArrayList<>();
+            return new HashSet<>();
         }).add(pos);
     }
 
@@ -368,14 +385,27 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         return height <= startY + 10 && height >= seaLevel && height >= endY;
     }*/
 
+    public static Map<Long ,Map<Long, Set<BlockPos>>> serializeNodesByRegion(Map<String, Map<String, List<BlockPos>>> yes) {
+        Map<Long ,Map<Long, Set<BlockPos>>> serializable = new Long2ReferenceOpenHashMap<>();
+
+        yes.forEach((s, stringListMap) -> {
+            Long2ReferenceOpenHashMap<Set<BlockPos>> chunks = new Long2ReferenceOpenHashMap<>();
+
+            stringListMap.forEach((s1, blockPos) -> chunks.put(Long.parseLong(s), new HashSet<>(blockPos)));
+            serializable.put(Long.parseLong(s), chunks);
+        });
+
+        return serializable;
+    }
+
 
     @Override
-    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getNodesByRegion() {
+    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> getNodesByRegion() {
         return nodesByRegion;
     }
 
     @Override
-    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getLightsByRegion() {
+    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> getLightsByRegion() {
         return lightsByRegion;
     }
 

@@ -17,6 +17,10 @@ public class CodecUtil {
             return new MutableBoundingBox(array[0], array[1], array[2], array[3], array[4], array[5]);
         });
     }, (boundingBox) -> {
-        return IntStream.of(boundingBox.x0, boundingBox.y0, boundingBox.z0);
+        return IntStream.of(boundingBox.x0, boundingBox.y0, boundingBox.z0, boundingBox.x1, boundingBox.y1, boundingBox.z1);
     }).stable();
+
+
+    public static final Codec<Long> LONG_KEY = Codec.LONG.xmap(i -> Long.toString(i), Long::parseLong).xmap(Long::parseLong, aLong -> Long.toString(aLong));
+
 }

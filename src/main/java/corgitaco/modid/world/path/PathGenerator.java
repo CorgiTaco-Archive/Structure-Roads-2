@@ -6,9 +6,7 @@ import net.minecraft.util.math.*;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.world.gen.feature.structure.Structure;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import static corgitaco.modid.core.StructureRegionManager.chunkToRegionKey;
 
@@ -18,8 +16,8 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
 
     private final MutableBoundingBox pathBox;
     private final List<PointWithGradient> points;
-    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> nodesByChunk = new Long2ReferenceOpenHashMap<>();
-    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> lightsByChunk = new Long2ReferenceOpenHashMap<>();
+    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> nodesByChunk = new Long2ReferenceOpenHashMap<>();
+    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> lightsByChunk = new Long2ReferenceOpenHashMap<>();
     private final BlockState debugState;
     private final long startStructureChunk;
     private final long endStructureChunk;
@@ -33,12 +31,12 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
         for (int idx = 0; idx < points.size() - 1; idx++) {
             for (BlockPos pos : getBezierPoints(points.get(idx), points.get(idx + 1), 0.001)) {
                 long chunkPosKey = ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
-                nodesByChunk.computeIfAbsent(chunkToRegionKey(chunkPosKey), (key) -> new Long2ReferenceOpenHashMap<>()).computeIfAbsent(chunkPosKey, (key) -> new ArrayList<>()).add(pos);
+                nodesByChunk.computeIfAbsent(chunkToRegionKey(chunkPosKey), (key) -> new Long2ReferenceOpenHashMap<>()).computeIfAbsent(chunkPosKey, (key) -> new HashSet<>()).add(pos);
             }
 
             for (BlockPos pos : getBezierPoints(points.get(idx), points.get(idx + 1), 0.004)) {
                 long chunkPosKey = ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
-                nodesByChunk.computeIfAbsent(chunkToRegionKey(chunkPosKey), (key) -> new Long2ReferenceOpenHashMap<>()).computeIfAbsent(chunkPosKey, (key) -> new ArrayList<>()).add(pos);
+                nodesByChunk.computeIfAbsent(chunkToRegionKey(chunkPosKey), (key) -> new Long2ReferenceOpenHashMap<>()).computeIfAbsent(chunkPosKey, (key) -> new HashSet<>()).add(pos);
             }
         }
 
@@ -53,7 +51,7 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
         return points;
     }
 
-    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getNodesByRegion() {
+    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> getNodesByRegion() {
         return nodesByChunk;
     }
 
@@ -84,7 +82,7 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
         return 0;
     }
 
-    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getLightsByRegion() {
+    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> getLightsByRegion() {
        return this.lightsByChunk;
     }
 
