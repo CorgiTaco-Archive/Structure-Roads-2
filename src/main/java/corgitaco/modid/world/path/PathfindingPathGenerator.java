@@ -91,7 +91,6 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
         generatePath(dataForRegion, generator, world.registryAccess().registry(Registry.BIOME_REGISTRY).orElse(null));
 
-
         int lastSize = 0;
         long saveRegion = Long.MIN_VALUE;
         for (Long2ReferenceOpenHashMap.Entry<Long2ReferenceOpenHashMap<List<BlockPos>>> Long2ReferenceOpenHashMapEntry : nodesByRegion.long2ReferenceEntrySet()) {
@@ -161,11 +160,10 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
                 BlockPos start = positions.get(i);
                 BlockPos end = positions.get(i + 1);
 
-                int dx = Math.abs(start.getX() - end.getZ());
+                int dx = Math.abs(start.getX() - end.getX());
                 int dz = Math.abs(start.getZ() - end.getZ());
 
                 int steps = (int) Math.ceil(Math.max(dx, dz) / 3.0f);
-                if(steps <= 1) steps = 2;
 
                 for(int step = 0; step < steps; step++){
                     addBlockPos(PathGenerator.getLerpedBlockPos(start, end, (float) step / steps));

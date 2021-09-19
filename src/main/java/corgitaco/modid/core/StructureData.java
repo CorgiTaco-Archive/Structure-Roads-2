@@ -18,7 +18,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public class StructureData {
-    private static final ExecutorService executor = Executors.newFixedThreadPool(5); //TODO: Find a better way / time to create this
+    private static final ExecutorService executor = Executors.newFixedThreadPool(5); //TODO: Find a better way/time to create this
     private final Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> locationContextData;
     private final Generated<Map<PathKey, PathfindingPathGenerator>> pathGenerators;
     private final StructureRegion region;
@@ -80,7 +80,7 @@ public class StructureData {
             int pathsCreated = 0;
             while (pathsCreated < pathsSubmitted){
                 try {
-                    PathfindingPathGenerator pathGenerator = completionService.poll(60, TimeUnit.SECONDS).get(); //TODO: This will throw a NullPointerException upon timeout should handle this better
+                    PathfindingPathGenerator pathGenerator = completionService.poll(10, TimeUnit.MINUTES).get(); //TODO: This will throw a NullPointerException upon timeout should handle this better. Also, this is a very long timeout
                     structureRegionManager.addPath(pathGenerator, this.structure);
                     pathsCreated++;
                 } catch (ExecutionException | InterruptedException e) {
