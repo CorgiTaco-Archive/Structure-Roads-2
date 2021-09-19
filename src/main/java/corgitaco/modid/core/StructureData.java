@@ -14,10 +14,11 @@ import net.minecraft.world.gen.settings.StructureSeparationSettings;
 import net.minecraft.world.server.ServerWorld;
 
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public class StructureData {
-
+    private static final ExecutorService executor = Executors.newFixedThreadPool(5); //TODO: Find a better way / time to create this
     private final Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> locationContextData;
     private final Generated<Map<PathKey, PathfindingPathGenerator>> pathGenerators;
     private final StructureRegion region;
@@ -61,17 +62,33 @@ public class StructureData {
 
     public Map<PathKey, PathfindingPathGenerator> getPathGenerators(boolean loadAll) {
         if (!pathGenerators.generated && loadAll) {
+            long startTime = System.currentTimeMillis();
             StructureRegionManager structureRegionManager = ((StructureRegionManager.Access) this.world).getStructureRegionManager();
 
             Long2ReferenceOpenHashMap<AdditionalStructureContext> locationContextData = this.getLocationContextData(true);
+            CompletionService<PathfindingPathGenerator> completionService = new ExecutorCompletionService<>(executor);
+            int pathsSubmitted = 0;
             for (Long2ReferenceMap.Entry<AdditionalStructureContext> entry : locationContextData.long2ReferenceEntrySet()) {
                 long structurePos = entry.getLongKey();
                 AdditionalStructureContext value = entry.getValue();
                 Pair<Integer, Integer> gridXZ = StructureRegionManager.getGridXZ(structurePos, this.config.spacing());
 
-                structureRegionManager.linkNeighbors(this.world, this.world.getSeed(), this.world.getChunkSource().getGenerator().getBiomeSource(), this.structure, this.config, structureRegionManager.dataForLocation, StructureRegionManager.NAMES[this.world.random.nextInt(StructureRegionManager.NAMES.length - 1)], 1, gridXZ.getFirst(), gridXZ.getSecond(), structurePos, value);
+                pathsSubmitted += structureRegionManager.linkNeighbors(this.world, this.world.getSeed(), this.world.getChunkSource().getGenerator().getBiomeSource(), this.structure, this.config, structureRegionManager.dataForLocation, StructureRegionManager.NAMES[this.world.random.nextInt(StructureRegionManager.NAMES.length - 1)], 1, gridXZ.getFirst(), gridXZ.getSecond(), structurePos, value, completionService);
                 pathGenerators.setGenerated();
             }
+
+            int pathsCreated = 0;
+            while (pathsCreated < pathsSubmitted){
+                try {
+                    PathfindingPathGenerator pathGenerator = completionService.poll(60, TimeUnit.SECONDS).get(); //TODO: This will throw a NullPointerException upon timeout should handle this better
+                    structureRegionManager.addPath(pathGenerator, this.structure);
+                    pathsCreated++;
+                } catch (ExecutionException | InterruptedException e) {
+                    throw new IllegalStateException("Failed to create path", e);
+                }
+            }
+
+            System.out.println("Created all paths in region in " + (System.currentTimeMillis() - startTime) + " ms");
         }
 
         return pathGenerators.value;

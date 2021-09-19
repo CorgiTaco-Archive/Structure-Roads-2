@@ -27,9 +27,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Random;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class StructureRegionManager {
-
     public static final String[] NAMES = new String[]{
             "Perthlochry",
             "Bournemouth",
@@ -180,7 +182,25 @@ public class StructureRegionManager {
         }
     }
 
-    public void linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext) {
+    /**
+     *
+     * @param world
+     * @param seed
+     * @param biomeSource
+     * @param structure
+     * @param structureSeparationSettings
+     * @param dataForLocation
+     * @param name
+     * @param neighborRange
+     * @param structureGridX
+     * @param structureGridZ
+     * @param structurePosFromGrid
+     * @param additionalStructureContext
+     * @param completionService
+     * @return The amount of path generators submitted to the {@code CompletionService}
+     */
+    public int linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext, CompletionService<PathfindingPathGenerator> completionService) {
+        int pathsSubmitted = 0;
         for (int neighborStructureGridX = -neighborRange; neighborStructureGridX < neighborRange; neighborStructureGridX++) {
             for (int neighborStructureGridZ = -neighborRange; neighborStructureGridZ < neighborRange; neighborStructureGridZ++) {
                 if (neighborStructureGridX == structureGridX && neighborStructureGridZ == structureGridZ) {
@@ -207,22 +227,28 @@ public class StructureRegionManager {
                 SharedSeedRandom structureRandom = new SharedSeedRandom();
                 structureRandom.setLargeFeatureWithSalt(seed, ChunkPos.getX(structurePosFromGrid) + ChunkPos.getX(neighborStructurePosFromGrid), ChunkPos.getZ(structurePosFromGrid) + ChunkPos.getZ(neighborStructurePosFromGrid), structureSeparationSettings.salt());
 
-                PathfindingPathGenerator pathGenerator = new PathfindingPathGenerator(world, new IPathGenerator.Point<>(structure, getPosFromChunk(structurePosFromGrid)), new IPathGenerator.Point<>(structure, getPosFromChunk(neighborStructurePosFromGrid)), dataForLocation);
-                if (!pathGenerator.dispose()) {
-                    long saveRegionKey = pathGenerator.saveRegion();
-                    StructureData.PathKey pathGeneratorKey = new StructureData.PathKey(getChunkFromPos(pathGenerator.getStart().getPos()), getChunkFromPos(pathGenerator.getEnd().getPos()));
-                    this.structureRegions.computeIfAbsent(saveRegionKey, (key) -> new StructureRegion(key, world)).structureData(structure).getPathGenerators(false).put(pathGeneratorKey, pathGenerator);
+                completionService.submit(() -> new PathfindingPathGenerator(world, new IPathGenerator.Point<>(structure, getPosFromChunk(structurePosFromGrid)), new IPathGenerator.Point<>(structure, getPosFromChunk(neighborStructurePosFromGrid)), dataForLocation));
+                pathsSubmitted++;
+            }
+        }
 
-                    for (long aLong : pathGenerator.getNodesByRegion().keySet()) {
-                        if (saveRegionKey == aLong) {
-                            continue;
-                        }
-                        StructureRegion structureRegion1 = this.structureRegions.computeIfAbsent(aLong, (key) -> new StructureRegion(key, world));
-                        StructureData structureData = structureRegion1.structureData(structure);
-                        structureData.getPathGeneratorReferences().computeIfAbsent(aLong, (key) -> new HashSet<>()).add(pathGeneratorKey);
-//                        structureData.getPathGeneratorNeighbors().putIfAbsent(pathGeneratorKey, pathGenerator);
-                    }
+        return pathsSubmitted;
+    }
+
+    public void addPath(PathfindingPathGenerator pathGenerator, Structure<?> structure){
+        if (!pathGenerator.dispose()) {
+            long saveRegionKey = pathGenerator.saveRegion();
+            StructureData.PathKey pathGeneratorKey = new StructureData.PathKey(getChunkFromPos(pathGenerator.getStart().getPos()), getChunkFromPos(pathGenerator.getEnd().getPos()));
+            this.structureRegions.computeIfAbsent(saveRegionKey, (key) -> new StructureRegion(key, world)).structureData(structure).getPathGenerators(false).put(pathGeneratorKey, pathGenerator);
+
+            for (long aLong : pathGenerator.getNodesByRegion().keySet()) {
+                if (saveRegionKey == aLong) {
+                    continue;
                 }
+                StructureRegion structureRegion1 = this.structureRegions.computeIfAbsent(aLong, (key) -> new StructureRegion(key, world));
+                StructureData structureData = structureRegion1.structureData(structure);
+                structureData.getPathGeneratorReferences().computeIfAbsent(aLong, (key) -> new HashSet<>()).add(pathGeneratorKey);
+//                        structureData.getPathGeneratorNeighbors().putIfAbsent(pathGeneratorKey, pathGenerator);
             }
         }
     }

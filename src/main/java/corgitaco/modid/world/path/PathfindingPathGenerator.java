@@ -60,7 +60,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
-    private static final boolean NOISE = false;
+    private static final boolean NOISE = true;
     private static final int BOUNDING_BOX_EXPANSION = 3;
     private boolean dispose = false;
 
@@ -305,16 +305,16 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         int chunkX = ChunkPos.getX(pos);
         int chunkZ = ChunkPos.getZ(pos);
 
-        Long2ReferenceOpenHashMap<DataForChunk> regionData = dataForRegion.computeIfAbsent(chunkToRegionKey(pos), (key) -> {
+        /*Long2ReferenceOpenHashMap<DataForChunk> regionData = dataForRegion.computeIfAbsent(chunkToRegionKey(pos), (key) -> {
             return new Long2ReferenceOpenHashMap<>();
         });
 
 
         DataForChunk chunkData = regionData.computeIfAbsent(pos, (key) -> {
             return new DataForChunk(generator.getBiomeSource().getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2));
-        });
+        });*/
 
-        Biome biome = chunkData.getBiome();
+        Biome biome = generator.getBiomeSource().getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2);
         RegistryKey<Biome> biomeKey = null;
         if (biomeRegistry != null) {
             biomeKey = biomeRegistry.getResourceKey(biome).orElse(null);
@@ -325,8 +325,8 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU)) {
             return 10000;
         } else {
-            int height = chunkData.getHeight(generator, chunkX * 16 + 8, chunkZ * 16 + 8);
-            if (NOISE && testHeight(minY, maxY, height, generator.getSeaLevel())) {
+            //int height = chunkData.getHeight(generator, chunkX * 16 + 8, chunkZ * 16 + 8);
+            if (NOISE && testHeight(minY, maxY, chunkX * 16 + 8, chunkZ * 16 + 8, generator)) {
                 return 10000;
             } else {
                 if (containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)) {
@@ -366,9 +366,9 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         return baseHeight >= minHeight && baseHeight <= maxHeight;
     }
 
-    public static boolean testHeight(int startY, int endY, int height, int seaLevel) {
+    /*public static boolean testHeight(int startY, int endY, int height, int seaLevel) {
         return height <= startY + 10 && height >= seaLevel && height >= endY;
-    }
+    }*/
 
 
     @Override
