@@ -16,8 +16,8 @@ import java.util.List;
 import java.util.Random;*/
 
 public class BisectionPathGenerator /*implements IPathGenerat*/{
-    /*private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
-    private final Long2ObjectArrayMap<List<BlockPos>> lightsByChunk = new Long2ObjectArrayMap<>();
+    /*private final Long2ObjectArrayMap<Set<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
+    private final Long2ObjectArrayMap<Set<BlockPos>> lightsByChunk = new Long2ObjectArrayMap<>();
     private final ServerWorld world;
     private MutableBoundingBox boundingBox;
     private boolean rejected = false;
@@ -159,12 +159,12 @@ public class BisectionPathGenerator /*implements IPathGenerat*/{
     }
 
     @Override
-    public Long2ObjectArrayMap<List<BlockPos>> getNodesByChunk() {
+    public Long2ObjectArrayMap<Set<BlockPos>> getNodesByChunk() {
         return nodesByChunk;
     }
 
     @Override
-    public Long2ObjectArrayMap<List<BlockPos>> getLightsByChunk() {
+    public Long2ObjectArrayMap<Set<BlockPos>> getLightsByChunk() {
         return lightsByChunk;
     }
 

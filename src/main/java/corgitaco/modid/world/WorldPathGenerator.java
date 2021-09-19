@@ -32,15 +32,7 @@ import net.minecraft.world.gen.feature.template.TemplateManager;
 import net.minecraft.world.server.ServerWorld;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-
-import static corgitaco.modid.core.StructureRegionManager.*;
-
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -96,7 +88,7 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
     private void generatePaths(ISeedReader world, Random random, BlockPos pos, WeightedBlockStateProvider stateProvider, long currentChunk, long currentRegionKey, Collection<PathfindingPathGenerator> values) {
         for (IPathGenerator<Structure<?>> pathGenerator : values) {
             if (pathGenerator.getBoundingBox().intersects(pos.getX(), pos.getX(), pos.getZ(), pos.getZ())) {
-                Long2ReferenceOpenHashMap<List<BlockPos>> chunkNodes = pathGenerator.getNodesByRegion().get(currentRegionKey);
+                Long2ReferenceOpenHashMap<Set<BlockPos>> chunkNodes = pathGenerator.getNodesByRegion().get(currentRegionKey);
                 if (chunkNodes.containsKey(currentChunk)) {
                     for (BlockPos blockPos : chunkNodes.get(currentChunk)) {
                         if (DEBUG) {
@@ -225,10 +217,10 @@ public class WorldPathGenerator extends Feature<NoFeatureConfig> {
     }
 
     private void generateLights(ISeedReader world, Random random, long currentChunk, IPathGenerator<Structure<?>> pathGenerator) {
-        Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> lightNodes = pathGenerator.getLightsByRegion();
+        Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> lightNodes = pathGenerator.getLightsByRegion();
         long regionKey = chunkToRegionKey(currentChunk);
         if (lightNodes.containsKey(regionKey)) {
-            for (BlockPos blockPos : lightNodes.get(regionKey).getOrDefault(currentChunk, new ArrayList<>())) {
+            for (BlockPos blockPos : lightNodes.get(regionKey).getOrDefault(currentChunk, new HashSet<>())) {
                 BlockPos lightPos = blockPos.offset(2, world.getHeight(Heightmap.Type.WORLD_SURFACE_WG, blockPos.getX(), blockPos.getZ()), 2);
                 TemplateManager templatemanager = world.getLevel().getStructureManager();
                 Template template = templatemanager.get(new ResourceLocation("village/plains/plains_lamp_1"));

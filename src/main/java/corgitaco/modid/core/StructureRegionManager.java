@@ -28,8 +28,6 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.concurrent.CompletionService;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class StructureRegionManager {
     public static final String[] NAMES = new String[]{
@@ -126,6 +124,18 @@ public class StructureRegionManager {
         }
     }
 
+    private void saveRegion(StructureRegion region) {
+        long regionPos = region.getPos();
+        int x = getX(regionPos);
+        int z = getZ(regionPos);
+
+        try {
+            CompressedStreamTools.write(region.saveTag(), savePath.resolve(String.format("%s,%s.2dr", x, z)).toFile());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     public StructureRegion getStructureRegion(long regionKey) {
         return this.structureRegions.computeIfAbsent(regionKey, (key) -> {
             CompoundNBT disk = getRegionNbt(regionKey);
@@ -133,7 +143,17 @@ public class StructureRegionManager {
         });
     }
 
-    public void collectRegionStructures(long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, StructureRegion structureRegion, long regionKey) {
+    public void unloadStructureRegion(long regionKey) {
+        saveRegion(this.structureRegions.remove(regionKey));
+    }
+
+    public void saveAllStructureRegions() {
+        for (StructureRegion region : this.structureRegions.values()) {
+            saveRegion(region);
+        }
+    }
+
+    public void collectRegionStructures(long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, long regionKey) {
         long startTime = System.currentTimeMillis();
 
         int regionX = getX(regionKey);

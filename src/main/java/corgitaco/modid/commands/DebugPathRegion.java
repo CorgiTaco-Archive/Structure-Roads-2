@@ -30,8 +30,8 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import static corgitaco.modid.core.StructureRegionManager.*;
 
@@ -175,8 +175,8 @@ public class DebugPathRegion {
             Color color = new Color(random.nextInt(251) + 5, random.nextInt(251) + 5, random.nextInt(251) + 5);
             int rgb = color.getRGB();
 
-            Long2ReferenceOpenHashMap<List<BlockPos>> blockPosList = pathGenerator.getNodesByRegion().get(regionKey);
-            for (List<BlockPos> value : blockPosList.values()) {
+            Long2ReferenceOpenHashMap<Set<BlockPos>> blockPosList = pathGenerator.getNodesByRegion().get(regionKey);
+            for (Set<BlockPos> value : blockPosList.values()) {
                 for (BlockPos blockPos : value) {
                     int x = blockPos.getX() - searchRegionBlockMinX;
                     int z = blockPos.getZ() - searchRegionBlockMinZ;

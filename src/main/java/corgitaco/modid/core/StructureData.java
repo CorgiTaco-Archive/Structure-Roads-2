@@ -1,11 +1,14 @@
 package corgitaco.modid.core;
 
 import com.mojang.datafixers.util.Pair;
+import com.mojang.serialization.DataResult;
+import corgitaco.modid.Main;
 import corgitaco.modid.structure.AdditionalStructureContext;
 import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import net.minecraft.nbt.CompoundNBT;
+import net.minecraft.nbt.INBT;
 import net.minecraft.nbt.NBTDynamicOps;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.world.gen.ChunkGenerator;
@@ -18,7 +21,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public class StructureData {
-    private static final ExecutorService executor = Executors.newFixedThreadPool(5); //TODO: Find a better way / time to create this
+    private static final ExecutorService PATH_EXECUTOR = Executors.newFixedThreadPool(5); //TODO: Find a better way / time to create this
     private final Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> locationContextData;
     private final Generated<Map<PathKey, PathfindingPathGenerator>> pathGenerators;
     private final StructureRegion region;
@@ -53,7 +56,7 @@ public class StructureData {
         if (!locationContextData.generated && loadAll) {
             StructureRegionManager structureRegionManager = ((StructureRegionManager.Access) this.world).getStructureRegionManager();
             ChunkGenerator generator = this.world.getChunkSource().generator;
-            structureRegionManager.collectRegionStructures(this.world.getSeed(), generator.getBiomeSource(), this.structure, this.config, this.region, this.region.getPos());
+            structureRegionManager.collectRegionStructures(this.world.getSeed(), generator.getBiomeSource(), this.structure, this.config, this.region.getPos());
             locationContextData.setGenerated();
         }
 
@@ -66,7 +69,7 @@ public class StructureData {
             StructureRegionManager structureRegionManager = ((StructureRegionManager.Access) this.world).getStructureRegionManager();
 
             Long2ReferenceOpenHashMap<AdditionalStructureContext> locationContextData = this.getLocationContextData(true);
-            CompletionService<PathfindingPathGenerator> completionService = new ExecutorCompletionService<>(executor);
+            CompletionService<PathfindingPathGenerator> completionService = new ExecutorCompletionService<>(PATH_EXECUTOR);
             int pathsSubmitted = 0;
             for (Long2ReferenceMap.Entry<AdditionalStructureContext> entry : locationContextData.long2ReferenceEntrySet()) {
                 long structurePos = entry.getLongKey();
@@ -164,7 +167,13 @@ public class StructureData {
         pathGenerators.putBoolean("generated", this.pathGenerators.generated);
 
         this.pathGenerators.value.forEach((pathKey, pathfindingPathGenerator) -> {
-            pathGenerators.put(pathKey.compoundKey(), PathfindingPathGenerator.CODEC.encodeStart(NBTDynamicOps.INSTANCE, pathfindingPathGenerator).result().get());
+            DataResult<INBT> dataResult = PathfindingPathGenerator.CODEC.encodeStart(NBTDynamicOps.INSTANCE, pathfindingPathGenerator);
+            Optional<INBT> result = dataResult.result();
+            if (result.isPresent()) {
+                pathGenerators.put(pathKey.compoundKey(), result.get());
+            } else {
+                Main.LOGGER.warn("Incomplete data for:" + result.toString());
+            }
         });
         nbt.put("path_generators", pathGenerators);
 
@@ -224,7 +233,7 @@ public class StructureData {
         }
 
         public PathKey(String key) {
-            String[] split = key.split("-");
+            String[] split = key.split(",");
             this.startPos = Long.parseLong(split[0]);
             this.endPos = Long.parseLong(split[1]);
         }
@@ -245,7 +254,7 @@ public class StructureData {
         }
 
         public String compoundKey() {
-            return startPos + "-" + endPos;
+            return startPos + "," + endPos;
         }
 
 
