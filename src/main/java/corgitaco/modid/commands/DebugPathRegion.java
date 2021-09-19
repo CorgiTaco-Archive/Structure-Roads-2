@@ -121,7 +121,7 @@ public class DebugPathRegion {
         g.drawLine(0, drawZ, range, drawZ);
         g.drawLine(drawX, 0, drawX, range);
 
-        int gridLineThickness = 25;
+        int gridLineThickness = 10;
 
         for (int xSearch = minSearchRangeRegionX; xSearch <= maxSearchRangeRegionX; xSearch++) {
             for (int zSearch = minSearchRangeRegionZ; zSearch <= maxSearchRangeRegionZ; zSearch++) {
@@ -130,8 +130,8 @@ public class DebugPathRegion {
                 g.setColor(Color.RED);
 
                 for (int thickness = -gridLineThickness; thickness < gridLineThickness; thickness++) {
-                    g.drawLine(gridDrawX, 0, gridDrawX, range);
-                    g.drawLine(0, gridDrawZ, range, gridDrawZ);
+                    g.drawLine(gridDrawX + thickness, 0, gridDrawX + thickness, range);
+                    g.drawLine(0, gridDrawZ + thickness, range, gridDrawZ+ thickness);
                 }
 
                 paintRegion(structureRegionManager, level, g, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);

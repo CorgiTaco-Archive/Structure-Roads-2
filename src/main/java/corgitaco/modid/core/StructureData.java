@@ -108,13 +108,17 @@ public class StructureData {
             Set<PathKey> pathKeys = entry.getValue();
             for (PathKey pathKey : pathKeys) {
                 this.neighborPathGenerators.computeIfAbsent(pathKey, (pathKey1 -> {
-                    return structureRegion.structureData(this.structure).getPathGenerators(true).get(pathKey1);
+                    PathfindingPathGenerator pathfindingPathGenerator = structureRegion.structureData(this.structure).getPathGenerators(true).get(pathKey1);
+                    if (pathfindingPathGenerator == null) {
+                        throw new IllegalStateException("Value not found!");
+                    }
+
+                    return pathfindingPathGenerator;
                 }));
             }
         }
 
-
-        return pathGenerators.value;
+        return this.neighborPathGenerators;
     }
 
     public static Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> allRegionStructurePositionsFromFile(CompoundNBT nbt) {

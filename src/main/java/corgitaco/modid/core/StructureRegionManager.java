@@ -239,16 +239,17 @@ public class StructureRegionManager {
         if (!pathGenerator.dispose()) {
             long saveRegionKey = pathGenerator.saveRegion();
             StructureData.PathKey pathGeneratorKey = new StructureData.PathKey(getChunkFromPos(pathGenerator.getStart().getPos()), getChunkFromPos(pathGenerator.getEnd().getPos()));
-            this.structureRegions.computeIfAbsent(saveRegionKey, (key) -> new StructureRegion(key, world)).structureData(structure).getPathGenerators(false).put(pathGeneratorKey, pathGenerator);
+            StructureData saveRegionStructureData = this.structureRegions.computeIfAbsent(saveRegionKey, (key) -> new StructureRegion(key, world)).structureData(structure);
+            saveRegionStructureData.getPathGenerators(false).put(pathGeneratorKey, pathGenerator);
 
             for (long aLong : pathGenerator.getNodesByRegion().keySet()) {
                 if (saveRegionKey == aLong) {
                     continue;
                 }
-                StructureRegion structureRegion1 = this.structureRegions.computeIfAbsent(aLong, (key) -> new StructureRegion(key, world));
-                StructureData structureData = structureRegion1.structureData(structure);
-                structureData.getPathGeneratorReferences().computeIfAbsent(aLong, (key) -> new HashSet<>()).add(pathGeneratorKey);
-//                        structureData.getPathGeneratorNeighbors().putIfAbsent(pathGeneratorKey, pathGenerator);
+                StructureRegion neighborRegion = this.structureRegions.computeIfAbsent(aLong, (key) -> new StructureRegion(key, world));
+                StructureData structureData = neighborRegion.structureData(structure);
+                structureData.getPathGeneratorReferences().computeIfAbsent(saveRegionKey, (key) -> new HashSet<>()).add(pathGeneratorKey);
+//                structureData.getPathGeneratorNeighbors().putIfAbsent(pathGeneratorKey, pathGenerator);
             }
         }
     }
