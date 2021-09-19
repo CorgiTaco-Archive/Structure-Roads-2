@@ -16,6 +16,10 @@ public class AdditionalStructureContext {
         this(name, 0, new LongArraySet());
     }
 
+    public AdditionalStructureContext(CompoundNBT nbt) {
+        this(nbt.getString("name"), nbt.getInt("tier"), new LongArraySet(nbt.getLongArray("connections")));
+    }
+
     public AdditionalStructureContext(String name, int tier, Set<Long> connections) {
         this.name = name;
         this.tier = tier;

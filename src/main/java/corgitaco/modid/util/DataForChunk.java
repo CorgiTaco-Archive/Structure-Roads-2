@@ -24,6 +24,7 @@ public class DataForChunk {
 
     public int getHeight(ChunkGenerator generator, int x, int z) {
         if (height == Integer.MIN_VALUE) {
+//            Main.LOGGER.warn("Why is this getting hit?!?!?!");
             this.height = generator.getBaseHeight(x, z, Heightmap.Type.OCEAN_FLOOR_WG);
         }
         return height;

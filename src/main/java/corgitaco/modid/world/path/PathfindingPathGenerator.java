@@ -1,8 +1,10 @@
 package corgitaco.modid.world.path;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import corgitaco.modid.util.CodecUtil;
 import corgitaco.modid.util.DataForChunk;
-import corgitaco.modid.world.WorldPathGenerator;
-import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
+import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongIterable;
 import net.minecraft.block.BlockState;
@@ -14,50 +16,90 @@ import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.world.biome.Biome;
-import net.minecraft.world.biome.provider.BiomeProvider;
 import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.Heightmap;
 import net.minecraft.world.gen.NoiseChunkGenerator;
 import net.minecraft.world.gen.SimplexNoiseGenerator;
+import net.minecraft.world.gen.feature.structure.Structure;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.common.BiomeDictionary;
 
-import static net.minecraftforge.common.BiomeDictionary.Type;
-
 import java.util.*;
 
-public class PathfindingPathGenerator implements IPathGenerator {
-    private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
-    private final Long2ObjectArrayMap<List<BlockPos>> lightsByChunk = new Long2ObjectArrayMap<>();
-    private final BiomeProvider biomeSource;
-    private final ChunkGenerator chunkGenerator;
-    private final BlockPos startPos;
-    private final BlockPos endPos;
-    private final SimplexNoiseGenerator simplex;
-    private final Registry<Biome> biomeRegistry;
+import static corgitaco.modid.core.StructureRegionManager.chunkToRegionKey;
+import static net.minecraftforge.common.BiomeDictionary.Type;
+
+public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
+
+    public static final Codec<PathfindingPathGenerator> CODEC = RecordCodecBuilder.create(builder -> {
+        return builder.group(Point.POINT_STRUCTURE_CODEC.fieldOf("start").forGetter(pathfindingPathGenerator -> {
+            return pathfindingPathGenerator.startPoint;
+        }), Point.POINT_STRUCTURE_CODEC.fieldOf("end").forGetter(pathfindingPathGenerator -> {
+            return pathfindingPathGenerator.endPoint;
+        }), Codec.unboundedMap(Codec.LONG, Codec.unboundedMap(Codec.LONG, BlockPos.CODEC.listOf())).fieldOf("nodesByRegion").forGetter(pathfindingPathGenerator -> {
+            return new HashMap<>(pathfindingPathGenerator.nodesByRegion);
+        }), Codec.LONG.fieldOf("saveRegion").forGetter(pathfindingPathGenerator -> {
+            return pathfindingPathGenerator.saveRegion;
+        }), CodecUtil.BOUNDING_BOX_CODEC.fieldOf("pathBox").forGetter(pathfindingPathGenerator -> {
+            return pathfindingPathGenerator.pathBox;
+        })).apply(builder, PathfindingPathGenerator::new);
+    });
+
+
+    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> nodesByRegion = new Long2ReferenceOpenHashMap<>();
+    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> lightsByRegion = new Long2ReferenceOpenHashMap<>();
+    private final Point<Structure<?>> startPoint;
+    private final Point<Structure<?>> endPoint;
+    private SimplexNoiseGenerator simplex;
+    private final long saveRegion;
     private final MutableBoundingBox pathBox;
-    private final int startY, endY;
-    private boolean createdPath = false;
 
     private int nSamples = 0;
     private static final boolean ADDITIONAL_DEBUG_DETAILS = false;
+    private static final boolean NOISE = false;
     private static final int BOUNDING_BOX_EXPANSION = 3;
+    private boolean dispose = false;
 
-    public PathfindingPathGenerator(ServerWorld world, BlockPos startPos, BlockPos endPos, Random random, BiomeProvider biomeSource, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion) {
-        this.biomeSource = biomeSource;
-        this.chunkGenerator = world.getChunkSource().generator;
-        this.startY = getHeight(startPos.getX(), startPos.getZ(), world.getChunkSource().getGenerator());
-        this.endY = getHeight(endPos.getX(), endPos.getZ(), world.getChunkSource().getGenerator());
-        this.startPos = startPos;
-        this.endPos = endPos;
+    public PathfindingPathGenerator(Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Map<Long, Map<Long, List<BlockPos>>> nodesByRegion, long saveRegion, MutableBoundingBox pathBox) {
+        this.startPoint = startPoint;
+        this.endPoint = endPoint;
+        this.saveRegion = saveRegion;
+        nodesByRegion.forEach((regionkey, positionsByChunk) -> {
+            this.nodesByRegion.put(regionkey.longValue(), new Long2ReferenceOpenHashMap<>(positionsByChunk));
+        });
+        this.pathBox = pathBox;
+    }
 
-        this.pathBox = pathBox(startPos, endPos, BOUNDING_BOX_EXPANSION);
+    public PathfindingPathGenerator(ServerWorld world, Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion) {
+        ChunkGenerator generator = world.getChunkSource().getGenerator();
+        this.startPoint = new Point<>(startPoint.getStructure(), new BlockPos(startPoint.getPos().getX(), getHeight(startPoint.getPos().getX(), startPoint.getPos().getZ(), generator), startPoint.getPos().getZ()));
+        this.endPoint = new Point<>(endPoint.getStructure(), new BlockPos(endPoint.getPos().getX(), getHeight(endPoint.getPos().getX(), endPoint.getPos().getZ(), generator), endPoint.getPos().getZ()));
+        this.pathBox = pathBox(startPoint.getPos(), endPoint.getPos(), BOUNDING_BOX_EXPANSION);
 
         this.simplex = new SimplexNoiseGenerator(new Random(world.getSeed()));
 
-        biomeRegistry = world.registryAccess().registry(Registry.BIOME_REGISTRY).orElse(null);
 
-        generatePath(dataForRegion);
+        generatePath(dataForRegion, generator, world.registryAccess().registry(Registry.BIOME_REGISTRY).orElse(null));
+
+
+        int lastSize = 0;
+        long saveRegion = Long.MIN_VALUE;
+        for (Long2ReferenceOpenHashMap.Entry<Long2ReferenceOpenHashMap<List<BlockPos>>> Long2ReferenceOpenHashMapEntry : nodesByRegion.long2ReferenceEntrySet()) {
+            long regionKey = Long2ReferenceOpenHashMapEntry.getLongKey();
+            Long2ReferenceOpenHashMap<List<BlockPos>> chunkEntries = Long2ReferenceOpenHashMapEntry.getValue();
+
+            int size = chunkEntries.size();
+            if (size > lastSize) {
+                lastSize = size;
+                saveRegion = regionKey;
+            }
+        }
+
+        if (nodesByRegion.isEmpty()) {
+            this.dispose = true;
+        }
+
+        this.saveRegion = saveRegion;
     }
 
     public static MutableBoundingBox pathBox(BlockPos startPos, BlockPos endPos) {
@@ -74,13 +116,14 @@ public class PathfindingPathGenerator implements IPathGenerator {
         return new MutableBoundingBox(Math.min(startPosX, endPosX) - expansion, 0, Math.min(startPosZ, endPosZ) - expansion, Math.max(startPosX, endPosX) + expansion, 0, Math.max(startPosZ, endPosZ) + expansion);
     }
 
-    private void generatePath(Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion){
+
+    private void generatePath(Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
         if (ADDITIONAL_DEBUG_DETAILS) {
-            System.out.println(String.format("Started Pathfinder Gen for: %s - %s", startPos, endPos));
+            System.out.println(String.format("Started Pathfinder Gen for: %s - %s", startPoint, endPoint));
         }
         long startTime = System.currentTimeMillis();
-        long startChunk = getChunkLongFromBlockPos(startPos);
-        long endChunk = getChunkLongFromBlockPos(endPos);
+        long startChunk = getChunkLongFromBlockPos(startPoint.getPos());
+        long endChunk = getChunkLongFromBlockPos(endPoint.getPos());
 
         if (startChunk == endChunk) {
             if (ADDITIONAL_DEBUG_DETAILS) {
@@ -89,7 +132,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
             return;
         }
 
-        Tile pathInfo = findBestPath(startChunk, endChunk, dataForRegion);
+        Tile pathInfo = findBestPath(startChunk, endChunk, dataForRegion, generator, biomeRegistry);
 
         if (pathInfo != null) {
             Tile currentTile = pathInfo;
@@ -119,7 +162,6 @@ public class PathfindingPathGenerator implements IPathGenerator {
                 }
             }
             addBlockPos(positions.get(basePos.size() - 1));
-            createdPath = true;
         } else {
             if (ADDITIONAL_DEBUG_DETAILS) {
                 System.out.println("No path found!");
@@ -127,13 +169,13 @@ public class PathfindingPathGenerator implements IPathGenerator {
         }
 
 
-        System.out.println(String.format("Pathfinder Gen for: %s - %s took %sms. Sampled %s times.", startPos, endPos, System.currentTimeMillis() - startTime, nSamples));
+        System.out.println(String.format("Pathfinder Gen for: %s - %s took %sms. Sampled %s times.", startPoint, endPoint, System.currentTimeMillis() - startTime, nSamples));
     }
 
     //Returns a tile that represents the endChunk
     //Tracing through the .bestPrev of every tile yields the path
-    private Tile findBestPath(long startChunk, long endChunk, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion){
-        Long2ObjectArrayMap<Tile> tiles = new Long2ObjectArrayMap<>();
+    private Tile findBestPath(long startChunk, long endChunk, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
+        Long2ReferenceOpenHashMap<Tile> tiles = new Long2ReferenceOpenHashMap<>();
 
         PriorityQueue<Tile> tilesToCheck = new PriorityQueue<>(Tile::compareTo);
         Tile tileAtStartPos = new Tile(1, startChunk);
@@ -153,7 +195,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
             }
 
             for (long pos : surroundingChunks(currentTile.pos)) {
-                Tile tile = getTileAt(pos, tiles, dataForRegion);
+                Tile tile = getTileAt(pos, tiles, dataForRegion, generator, biomeRegistry);
                 int newDist = currentTile.distFromStart + currentTile.weight;
 
 
@@ -170,7 +212,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
             }
         }
 
-        if(found) return tiles.get(endChunk);
+        if (found) return tiles.get(endChunk);
         else return null;
     }
 
@@ -188,10 +230,10 @@ public class PathfindingPathGenerator implements IPathGenerator {
         }
     }
 
-    private List<BlockPos> averagePoints(List<BlockPos> pos){
+    private List<BlockPos> averagePoints(List<BlockPos> pos) {
         List<BlockPos> averagePoints = new ArrayList<>(pos.size());
         averagePoints.add(pos.get(0));
-        for(int i = 1; i < pos.size() - 1; i++){
+        for (int i = 1; i < pos.size() - 1; i++) {
             int x = pos.get(i - 1).getX() + 2 * pos.get(i).getX() + pos.get(i + 1).getX();
             int z = pos.get(i - 1).getZ() + 2 * pos.get(i).getZ() + pos.get(i + 1).getZ();
 
@@ -206,25 +248,23 @@ public class PathfindingPathGenerator implements IPathGenerator {
     }
 
     private void addLightPos(BlockPos pos) {
-        long chunkPos = getChunkLongFromBlockPos(pos);
-        List<BlockPos> nodeList = lightsByChunk.get(chunkPos);
-        if (nodeList == null) {
-            nodeList = new ArrayList<>();
-            lightsByChunk.put(chunkPos, nodeList);
-        }
-
-        nodeList.add(pos);
+        long chunkKey = getChunkLongFromBlockPos(pos);
+        long regionKey = chunkToRegionKey(chunkKey);
+        lightsByRegion.computeIfAbsent(regionKey, (key) -> {
+            return new Long2ReferenceOpenHashMap<>();
+        }).computeIfAbsent(chunkKey, (key) -> {
+            return new ArrayList<>();
+        }).add(pos);
     }
 
     private void addBlockPos(BlockPos pos) {
-        long chunkPos = getChunkLongFromBlockPos(pos);
-        List<BlockPos> nodeList = nodesByChunk.get(chunkPos);
-        if (nodeList == null) {
-            nodeList = new ArrayList<>();
-            nodesByChunk.put(chunkPos, nodeList);
-        }
-
-        nodeList.add(pos);
+        long chunkKey = getChunkLongFromBlockPos(pos);
+        long regionKey = chunkToRegionKey(chunkKey);
+        nodesByRegion.computeIfAbsent(regionKey, (key) -> {
+            return new Long2ReferenceOpenHashMap<>();
+        }).computeIfAbsent(chunkKey, (key) -> {
+            return new ArrayList<>();
+        }).add(pos);
     }
 
     private LongIterable surroundingChunks(long pos) {
@@ -240,61 +280,64 @@ public class PathfindingPathGenerator implements IPathGenerator {
         return points;
     }
 
-    private Tile getTileAt(long pos, Long2ObjectArrayMap<Tile> tiles, Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion) {
+    private Tile getTileAt(long pos, Long2ReferenceOpenHashMap<Tile> tiles, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
         Tile tile = tiles.get(pos);
         if (tile == null) {
-            Tile newTile = new Tile(getWeight(dataForRegion, pos), pos);
+            Tile newTile = new Tile(getWeight(dataForRegion, pos, generator, biomeRegistry), pos);
             tiles.put(pos, newTile);
             return newTile;
         }
         return tile;
     }
 
-    private int getWeight(Long2ObjectArrayMap<Long2ObjectArrayMap<DataForChunk>> dataForRegion, long pos) {
+    private int getWeight(Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, long pos, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
         nSamples++;
         int chunkX = ChunkPos.getX(pos);
         int chunkZ = ChunkPos.getZ(pos);
 
-        Long2ObjectArrayMap<DataForChunk> regionData = dataForRegion.computeIfAbsent(WorldPathGenerator.chunkToRegionKey(pos), (key) -> {
-            return new Long2ObjectArrayMap<>();
+        Long2ReferenceOpenHashMap<DataForChunk> regionData = dataForRegion.computeIfAbsent(chunkToRegionKey(pos), (key) -> {
+            return new Long2ReferenceOpenHashMap<>();
         });
 
 
         DataForChunk chunkData = regionData.computeIfAbsent(pos, (key) -> {
-            return new DataForChunk(this.biomeSource.getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2));
+            return new DataForChunk(generator.getBiomeSource().getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2));
         });
 
         Biome biome = chunkData.getBiome();
         RegistryKey<Biome> biomeKey = null;
-        if(biomeRegistry != null) {
+        if (biomeRegistry != null) {
             biomeKey = biomeRegistry.getResourceKey(biome).orElse(null);
         }
 
 
-
-
-
-
         Set<Type> biomeTypes = BiomeDictionary.getTypes(biomeKey);
-        if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU)/* || testHeight(startY, endY, chunkX * 16 + 8, chunkZ * 16 + 8, chunkGenerator) */) {
+        if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU)) {
             return 10000;
-        }else if(containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)){
-            return 3; //Will make river crossing try to be shorter
+        } else {
+            int height = chunkData.getHeight(generator, chunkX * 16 + 8, chunkZ * 16 + 8);
+            if (NOISE && testHeight(startPoint.getPos().getY(), endPoint.getPos().getY(), height, generator.getSeaLevel())) {
+                return 10000;
+            } else {
+                if (containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)) {
+                    return 3; //Will make river crossing try to be shorter
+                }
+            }
         }
 
         return 1;
     }
 
-    private static <T> boolean containsAny(Collection<T> collection, T... items){
-        for(T item : items){
-            if(collection.contains(item)){
+    private static <T> boolean containsAny(Collection<T> collection, T... items) {
+        for (T item : items) {
+            if (collection.contains(item)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static int getHeight(int x, int z, ChunkGenerator generator){
+    private static int getHeight(int x, int z, ChunkGenerator generator) {
 //        if(generator instanceof NoiseChunkGenerator){
 //            double[] column = ((NoiseChunkGenerator) generator).makeAndFillNoiseColumn(x, z);
 //            int baseHeight = column.length - 1;
@@ -304,7 +347,7 @@ public class PathfindingPathGenerator implements IPathGenerator {
 //            return baseHeight;
 //        }else{
 //            System.out.println("Used getBaseHeight");
-            return generator.getBaseHeight(x, z, Heightmap.Type.OCEAN_FLOOR_WG);
+        return generator.getBaseHeight(x, z, Heightmap.Type.OCEAN_FLOOR_WG);
 //        }
     }
 
@@ -319,13 +362,13 @@ public class PathfindingPathGenerator implements IPathGenerator {
 
 
     @Override
-    public Long2ObjectArrayMap<List<BlockPos>> getNodesByChunk() {
-        return nodesByChunk;
+    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getNodesByRegion() {
+        return nodesByRegion;
     }
 
     @Override
-    public Long2ObjectArrayMap<List<BlockPos>> getLightsByChunk() {
-        return lightsByChunk;
+    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getLightsByRegion() {
+        return lightsByRegion;
     }
 
     @Override
@@ -341,6 +384,36 @@ public class PathfindingPathGenerator implements IPathGenerator {
     @Override
     public boolean createdSuccessfully() {
         return true;
+    }
+
+    @Override
+    public Point<Structure<?>> getStart() {
+        return this.startPoint;
+    }
+
+    @Override
+    public Point<Structure<?>> getEnd() {
+        return this.endPoint;
+    }
+
+    @Override
+    public long saveRegion() {
+        return this.saveRegion;
+    }
+
+    @Override
+    public boolean dispose() {
+        return this.dispose;
+    }
+
+    @Override
+    public void setLastLoadedGameTime(long gameTime) {
+
+    }
+
+    @Override
+    public long lastLoadedGameTime() {
+        return 0;
     }
 
     public static class Tile implements Comparable {

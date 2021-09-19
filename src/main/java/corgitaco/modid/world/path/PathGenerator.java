@@ -1,22 +1,25 @@
 package corgitaco.modid.world.path;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
+import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.util.math.*;
 import net.minecraft.util.registry.Registry;
+import net.minecraft.world.gen.feature.structure.Structure;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-public class PathGenerator implements IPathGenerator{
+import static corgitaco.modid.core.StructureRegionManager.chunkToRegionKey;
+
+public class PathGenerator implements IPathGenerator<Structure<?>> {
 
     public static boolean DEBUG = false;
 
     private final MutableBoundingBox pathBox;
     private final List<PointWithGradient> points;
-    private final Long2ObjectArrayMap<List<BlockPos>> nodesByChunk = new Long2ObjectArrayMap<>();
-    private final Long2ObjectArrayMap<List<BlockPos>> lightsByChunk = new Long2ObjectArrayMap<>();
+    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> nodesByChunk = new Long2ReferenceOpenHashMap<>();
+    private final Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> lightsByChunk = new Long2ReferenceOpenHashMap<>();
     private final BlockState debugState;
     private final long startStructureChunk;
     private final long endStructureChunk;
@@ -29,11 +32,13 @@ public class PathGenerator implements IPathGenerator{
 
         for (int idx = 0; idx < points.size() - 1; idx++) {
             for (BlockPos pos : getBezierPoints(points.get(idx), points.get(idx + 1), 0.001)) {
-                nodesByChunk.computeIfAbsent(ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())), (key) -> new ArrayList<>()).add(pos);
+                long chunkPosKey = ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
+                nodesByChunk.computeIfAbsent(chunkToRegionKey(chunkPosKey), (key) -> new Long2ReferenceOpenHashMap<>()).computeIfAbsent(chunkPosKey, (key) -> new ArrayList<>()).add(pos);
             }
 
             for (BlockPos pos : getBezierPoints(points.get(idx), points.get(idx + 1), 0.004)) {
-                lightsByChunk.computeIfAbsent(ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())), (key) -> new ArrayList<>()).add(pos);
+                long chunkPosKey = ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
+                nodesByChunk.computeIfAbsent(chunkToRegionKey(chunkPosKey), (key) -> new Long2ReferenceOpenHashMap<>()).computeIfAbsent(chunkPosKey, (key) -> new ArrayList<>()).add(pos);
             }
         }
 
@@ -48,14 +53,13 @@ public class PathGenerator implements IPathGenerator{
         return points;
     }
 
-    public Long2ObjectArrayMap<List<BlockPos>> getNodesByChunk() {
+    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getNodesByRegion() {
         return nodesByChunk;
     }
 
     public BlockState debugState() {
         return debugState;
     }
-
     @Override
     public MutableBoundingBox getBoundingBox() {
         return pathBox;
@@ -65,9 +69,38 @@ public class PathGenerator implements IPathGenerator{
     public boolean createdSuccessfully() {
         return true;
     }
+    @Override
+    public Point<Structure<?>> getStart() {
+        return null;
+    }
 
-    public Long2ObjectArrayMap<List<BlockPos>> getLightsByChunk() {
-        return lightsByChunk;
+    @Override
+    public Point<Structure<?>> getEnd() {
+        return null;
+    }
+
+    @Override
+    public long saveRegion() {
+        return 0;
+    }
+
+    public Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<List<BlockPos>>> getLightsByRegion() {
+       return this.lightsByChunk;
+    }
+
+    @Override
+    public boolean dispose() {
+        return false;
+    }
+
+    @Override
+    public void setLastLoadedGameTime(long gameTime) {
+
+    }
+
+    @Override
+    public long lastLoadedGameTime() {
+        return 0;
     }
 
     public static List<PointWithGradient> getPointWithGradients(Random random, BlockPos startPos, BlockPos endPos, MutableBoundingBox pathBox, int pointCount, double windiness) {

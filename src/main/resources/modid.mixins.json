@@ -9,7 +9,9 @@
     "MixinMinecraftServer",
     "MixinServerWorld",
     "access.BiomeGenerationSettingsAccess",
-    "access.StructureAccess"
+    "access.ChunkManagerAccess",
+    "access.StructureAccess",
+    "access.UtilAccess"
   ],
   "client": [
   ],
