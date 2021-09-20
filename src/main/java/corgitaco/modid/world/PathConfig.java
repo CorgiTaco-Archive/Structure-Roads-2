@@ -17,7 +17,7 @@ public class PathConfig implements IFeatureConfig {
     public static final Codec<PathConfig> CODEC = RecordCodecBuilder.create((builder) -> {
         return builder.group(CodecUtil.STRUCTURE_CODEC.fieldOf("structure").forGetter(pathConfig -> {
             return pathConfig.structure;
-        }), Codec.unboundedMap(CodecUtil.BIOME_KEY, BlockStateProvider.CODEC).fieldOf("biomeStateProviders").forGetter(pathConfig -> {
+        }), Codec.unboundedMap(Biome.Category.CODEC, BlockStateProvider.CODEC).fieldOf("biomeStateProviders").forGetter(pathConfig -> {
             return pathConfig.biomePathBlocks;
         }), BlockStateProvider.CODEC.fieldOf("default").forGetter(pathConfig -> {
             return pathConfig.defaultStateProvider;
@@ -29,12 +29,12 @@ public class PathConfig implements IFeatureConfig {
     });
 
     private final Structure<?> structure;
-    private final Map<RegistryKey<Biome>, BlockStateProvider> biomePathBlocks;
+    private final Map<Biome.Category, BlockStateProvider> biomePathBlocks;
     private final BlockStateProvider defaultStateProvider;
     private final int pathSize;
     private final ResourceLocation lightFilePath;
 
-    public PathConfig(Structure<?> structure, Map<RegistryKey<Biome>, BlockStateProvider> biomePathBlocks, BlockStateProvider defaultStateProvider, int pathSize, ResourceLocation lightFilePath) {
+    public PathConfig(Structure<?> structure, Map<Biome.Category, BlockStateProvider> biomePathBlocks, BlockStateProvider defaultStateProvider, int pathSize, ResourceLocation lightFilePath) {
         this.structure = structure;
         this.biomePathBlocks = biomePathBlocks;
         this.defaultStateProvider = defaultStateProvider;
@@ -46,7 +46,7 @@ public class PathConfig implements IFeatureConfig {
         return structure;
     }
 
-    public Map<RegistryKey<Biome>, BlockStateProvider> getBiomePathBlocks() {
+    public Map<Biome.Category, BlockStateProvider> getBiomePathBlocks() {
         return biomePathBlocks;
     }
 

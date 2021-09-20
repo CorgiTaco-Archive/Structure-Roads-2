@@ -37,12 +37,10 @@ public class BiomeUtils {
     public static final Feature<PathConfig> PATH_GENERATOR = createFeature("path_generator", new WorldPathGenerator(PathConfig.CODEC));
     public static final ConfiguredFeature<?, ?> CONFIGURED_PATH_GENERATOR = createConfiguredFeature("path_generator", PATH_GENERATOR.configured(
             new PathConfig(Structure.VILLAGE, Util.make(new Object2ObjectArrayMap<>(), (map) -> {
-                map.put(Biomes.BAMBOO_JUNGLE, new WeightedBlockStateProvider().add(Blocks.GRASS_PATH.defaultBlockState(), 5).add(Blocks.MOSSY_COBBLESTONE.defaultBlockState(), 2));
-                map.put(Biomes.JUNGLE, new WeightedBlockStateProvider().add(Blocks.GRASS_PATH.defaultBlockState(), 5).add(Blocks.MOSSY_COBBLESTONE.defaultBlockState(), 2));
-                map.put(Biomes.JUNGLE_EDGE, new WeightedBlockStateProvider().add(Blocks.GRASS_PATH.defaultBlockState(), 5).add(Blocks.MOSSY_COBBLESTONE.defaultBlockState(), 2));
-                map.put(Biomes.DESERT, new WeightedBlockStateProvider().add(Blocks.COBBLESTONE.defaultBlockState(), 1).add(Blocks.SANDSTONE.defaultBlockState(), 4));
-                map.put(Biomes.DESERT_HILLS, new WeightedBlockStateProvider().add(Blocks.COBBLESTONE.defaultBlockState(), 1).add(Blocks.SANDSTONE.defaultBlockState(), 4));
-                map.put(Biomes.DESERT_LAKES, new WeightedBlockStateProvider().add(Blocks.COBBLESTONE.defaultBlockState(), 1).add(Blocks.SANDSTONE.defaultBlockState(), 4));
+                map.put(Biome.Category.JUNGLE, new WeightedBlockStateProvider().add(Blocks.GRASS_PATH.defaultBlockState(), 5).add(Blocks.MOSSY_COBBLESTONE.defaultBlockState(), 2));
+                map.put(Biome.Category.DESERT, new WeightedBlockStateProvider().add(Blocks.COBBLESTONE.defaultBlockState(), 1).add(Blocks.SANDSTONE.defaultBlockState(), 4));
+                map.put(Biome.Category.TAIGA, new WeightedBlockStateProvider().add(Blocks.MOSSY_COBBLESTONE.defaultBlockState(), 2).add(Blocks.COBBLESTONE.defaultBlockState(), 4).add(Blocks.GRASS_PATH.defaultBlockState(), 12));
+                map.put(Biome.Category.RIVER, new WeightedBlockStateProvider().add(Blocks.OAK_PLANKS.defaultBlockState(), 2).add(Blocks.STRIPPED_OAK_WOOD.defaultBlockState(), 5));
             }), new WeightedBlockStateProvider().add(Blocks.GRASS_PATH.defaultBlockState(), 5).add(Blocks.COARSE_DIRT.defaultBlockState(), 2), 5, new ResourceLocation(""))).decorated(Placement.NOPE.configured(NoPlacementConfig.INSTANCE)));
 
     public static void addFeaturesToBiomes(Biome biome, RegistryKey<Biome> biomeKey) {

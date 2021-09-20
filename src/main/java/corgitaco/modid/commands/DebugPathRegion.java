@@ -124,6 +124,13 @@ public class DebugPathRegion {
 
         int gridLineThickness = 10;
 
+        //Generate all path generators to ensure no cutoffs in image
+        for (int xSearch = minSearchRangeRegionX; xSearch <= maxSearchRangeRegionX; xSearch++) {
+            for (int zSearch = minSearchRangeRegionZ; zSearch <= maxSearchRangeRegionZ; zSearch++) {
+                structureRegionManager.getStructureRegion(regionKey(xSearch, zSearch)).structureData(Structure.VILLAGE).getPathGenerators(true);
+            }
+        }
+
         for (int xSearch = minSearchRangeRegionX; xSearch <= maxSearchRangeRegionX; xSearch++) {
             for (int zSearch = minSearchRangeRegionZ; zSearch <= maxSearchRangeRegionZ; zSearch++) {
                 int gridDrawX = regionToBlock(xSearch - minSearchRangeRegionX);

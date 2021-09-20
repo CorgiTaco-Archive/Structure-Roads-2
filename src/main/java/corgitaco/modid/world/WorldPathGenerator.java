@@ -74,7 +74,7 @@ public class WorldPathGenerator extends Feature<PathConfig> {
         return true;
     }
 
-    private void generatePaths(ISeedReader world, Random random, Map<RegistryKey<Biome>, BlockStateProvider> biomeStateProviders, BlockStateProvider defaultStateProvider, long currentChunk, long currentRegionKey, Collection<PathfindingPathGenerator> values, int pathSize) {
+    private void generatePaths(ISeedReader world, Random random, Map<Biome.Category, BlockStateProvider> biomeStateProviders, BlockStateProvider defaultStateProvider, long currentChunk, long currentRegionKey, Collection<PathfindingPathGenerator> values, int pathSize) {
         for (IPathGenerator<Structure<?>> pathGenerator : values) {
 //            if (pathGenerator.getBoundingBox().intersects(pos.getX(), pos.getZ(), pos.getX(), pos.getZ())) {
                 Long2ReferenceOpenHashMap<Set<BlockPos>> chunkNodes = pathGenerator.getNodesByRegion().get(currentRegionKey);
@@ -92,14 +92,14 @@ public class WorldPathGenerator extends Feature<PathConfig> {
         }
     }
 
-    private void generatePath(ISeedReader world, Random random, Map<RegistryKey<Biome>, BlockStateProvider> biomeStateProviders, BlockStateProvider defaultStateProvider, BlockPos blockPos, int pathSize) {
+    private void generatePath(ISeedReader world, Random random, Map<Biome.Category, BlockStateProvider> biomeStateProviders, BlockStateProvider defaultStateProvider, BlockPos blockPos, int pathSize) {
         BlockPos.Mutable mutable = new BlockPos.Mutable();
-        MutableRegistry<Biome> biomeRegistryKey = world.registryAccess().registry(Registry.BIOME_REGISTRY).get();
+        //MutableRegistry<Biome> biomeRegistryKey = world.registryAccess().registry(Registry.BIOME_REGISTRY).get();
         for (int xMove = -pathSize; xMove < pathSize; xMove++) {
             for (int zMove = -pathSize; zMove < pathSize; zMove++) {
                 BlockPos.Mutable movedMutable = mutable.setWithOffset(blockPos, xMove, 0, zMove);
                 movedMutable.setY(world.getHeight(Heightmap.Type.WORLD_SURFACE_WG, movedMutable.getX(), movedMutable.getZ()) - 1);
-                BlockStateProvider stateProvider = biomeStateProviders.getOrDefault(biomeRegistryKey.getResourceKey(world.getBiome(mutable)).get(), defaultStateProvider);
+                BlockStateProvider stateProvider = biomeStateProviders.getOrDefault(world.getBiome(mutable).getBiomeCategory(), defaultStateProvider);
                 world.setBlock(movedMutable, stateProvider.getState(random, movedMutable), 2);
             }
         }
