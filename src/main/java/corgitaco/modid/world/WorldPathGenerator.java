@@ -44,11 +44,6 @@ public class WorldPathGenerator extends Feature<PathConfig> {
 
     @Override
     public boolean place(ISeedReader world, ChunkGenerator generator, Random random, BlockPos pos, PathConfig config) {
-        long seed = world.getSeed();
-
-        int minConnectionCount = 1;
-        int maxConnectionCount = 2;
-
         int x = pos.getX();
         int chunkX = SectionPos.blockToSectionCoord(x);
         int z = pos.getZ();

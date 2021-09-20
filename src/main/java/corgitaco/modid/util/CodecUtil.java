@@ -21,6 +21,4 @@ public class CodecUtil {
     }, (boundingBox) -> {
         return IntStream.of(boundingBox.x0, boundingBox.y0, boundingBox.z0, boundingBox.x1, boundingBox.y1, boundingBox.z1);
     }).stable();
-
-    public static final Codec<RegistryKey<Biome>> BIOME_KEY = ResourceLocation.CODEC.xmap(resourceLocation -> RegistryKey.create(Registry.BIOME_REGISTRY, resourceLocation), RegistryKey::location);
 }

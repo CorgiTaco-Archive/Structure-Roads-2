@@ -11,7 +11,4 @@ public interface ChunkManagerAccess {
 
     @Accessor
     File getStorageFolder();
-
-    @Accessor
-    int getViewDistance();
 }

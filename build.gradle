@@ -22,6 +22,7 @@ plugins {
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 apply plugin: 'maven-publish'
+apply plugin: 'org.spongepowered.mixin'
 
 build.dependsOn(tasks.findByName("shadowJar"))
 
@@ -29,8 +30,6 @@ configurations {
     shadow
     implementation.extendsFrom(shadow)
 }
-
-
 
 version = "${mod_version}"
 group = "corgitaco.${modid}" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
@@ -148,8 +147,6 @@ repositories {
         url = "https://maven.daporkchop.net/"
     }
 }
-
-apply plugin: 'org.spongepowered.mixin'
 
 mixin {
     add sourceSets.main, "${modid}.refmap.json"
