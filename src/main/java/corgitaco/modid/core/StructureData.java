@@ -3,6 +3,7 @@ package corgitaco.modid.core;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.DataResult;
 import corgitaco.modid.Main;
+import corgitaco.modid.mixin.access.UtilAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
 import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
@@ -21,7 +22,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public class StructureData {
-    private static final ExecutorService PATH_EXECUTOR = Executors.newFixedThreadPool(5); //TODO: Find a better way / time to create this
+    private static final ExecutorService PATH_EXECUTOR = UtilAccess.invokeMakeExecutor("path"); //TODO: Find a better way / time to create this
     private final Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> locationContextData;
     private final Generated<Map<PathKey, PathfindingPathGenerator>> pathGenerators;
     private final StructureRegion region;

@@ -8,6 +8,7 @@ import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongIterable;
+import net.daporkchop.lib.primitive.map.concurrent.LongObjConcurrentHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.RegistryKey;
@@ -94,7 +95,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         this.maxY = maxY;
     }
 
-    public PathfindingPathGenerator(ServerWorld world, Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion) {
+    public PathfindingPathGenerator(ServerWorld world, Point<Structure<?>> startPoint, Point<Structure<?>> endPoint, LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForRegion) {
         ChunkGenerator generator = world.getChunkSource().getGenerator();
         this.startPoint = new Point<>(startPoint.getStructure(), new BlockPos(startPoint.getPos().getX(), getHeight(startPoint.getPos().getX(), startPoint.getPos().getZ(), generator), startPoint.getPos().getZ()));
         this.endPoint = new Point<>(endPoint.getStructure(), new BlockPos(endPoint.getPos().getX(), getHeight(endPoint.getPos().getX(), endPoint.getPos().getZ(), generator), endPoint.getPos().getZ()));
@@ -143,7 +144,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
     }
 
 
-    private void generatePath(Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
+    private void generatePath(LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
         if (ADDITIONAL_DEBUG_DETAILS) {
             System.out.println(String.format("Started Pathfinder Gen for: %s - %s", startPoint, endPoint));
         }
@@ -199,7 +200,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
     //Returns a tile that represents the endChunk
     //Tracing through the .bestPrev of every tile yields the path
-    private Tile findBestPath(long startChunk, long endChunk, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
+    private Tile findBestPath(long startChunk, long endChunk, LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
         Long2ReferenceOpenHashMap<Tile> tiles = new Long2ReferenceOpenHashMap<>();
 
         PriorityQueue<Tile> tilesToCheck = new PriorityQueue<>(Tile::compareTo);
@@ -305,7 +306,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         return points;
     }
 
-    private Tile getTileAt(long pos, Long2ReferenceOpenHashMap<Tile> tiles, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
+    private Tile getTileAt(long pos, Long2ReferenceOpenHashMap<Tile> tiles, LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForRegion, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
         Tile tile = tiles.get(pos);
         if (tile == null) {
             Tile newTile = new Tile(getWeight(dataForRegion, pos, generator, biomeRegistry), pos);
@@ -315,21 +316,21 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         return tile;
     }
 
-    private int getWeight(Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForRegion, long pos, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
+    private int getWeight(LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForRegion, long pos, ChunkGenerator generator, Registry<Biome> biomeRegistry) {
         nSamples++;
         int chunkX = ChunkPos.getX(pos);
         int chunkZ = ChunkPos.getZ(pos);
 
-        /*Long2ReferenceOpenHashMap<DataForChunk> regionData = dataForRegion.computeIfAbsent(chunkToRegionKey(pos), (key) -> {
-            return new Long2ReferenceOpenHashMap<>();
+        LongObjConcurrentHashMap<DataForChunk> regionData = dataForRegion.computeIfAbsent(chunkToRegionKey(pos), (key) -> {
+            return new LongObjConcurrentHashMap<>();
         });
 
 
         DataForChunk chunkData = regionData.computeIfAbsent(pos, (key) -> {
             return new DataForChunk(generator.getBiomeSource().getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2));
-        });*/
+        });
 
-        Biome biome = generator.getBiomeSource().getNoiseBiome((chunkX << 2) + 2, 60, (chunkZ << 2) + 2);
+        Biome biome = chunkData.getBiome();
         RegistryKey<Biome> biomeKey = null;
         if (biomeRegistry != null) {
             biomeKey = biomeRegistry.getResourceKey(biome).orElse(null);
@@ -340,8 +341,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         if (containsAny(biomeTypes, Type.MOUNTAIN, Type.HILLS, Type.OCEAN, Type.PLATEAU)) {
             return 10000;
         } else {
-            //int height = chunkData.getHeight(generator, chunkX * 16 + 8, chunkZ * 16 + 8);
-            if (NOISE && testHeight(minY, maxY, chunkX * 16 + 8, chunkZ * 16 + 8, generator)) {
+            if (NOISE && testHeight(minY, maxY, chunkX * 16 + 8, chunkZ * 16 + 8, chunkData, generator)) {
                 return 10000;
             } else {
                 if (containsAny(biomeTypes, Type.RIVER, Type.SPOOKY)) {
@@ -376,8 +376,8 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 //        }
     }
 
-    public static boolean testHeight(int minHeight, int maxHeight, int x, int z, ChunkGenerator generator) {
-        int baseHeight = getHeight(x, z, generator);
+    public static boolean testHeight(int minHeight, int maxHeight, int x, int z, DataForChunk dataForChunk, ChunkGenerator generator) {
+        int baseHeight = dataForChunk.getHeight(generator, x, z);
         return !(baseHeight >= minHeight && baseHeight <= maxHeight);
     }
 

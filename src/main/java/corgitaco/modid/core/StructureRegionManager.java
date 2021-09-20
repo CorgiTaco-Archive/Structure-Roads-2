@@ -8,6 +8,7 @@ import corgitaco.modid.util.DataForChunk;
 import corgitaco.modid.world.path.IPathGenerator;
 import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
+import net.daporkchop.lib.primitive.map.concurrent.LongObjConcurrentHashMap;
 import net.minecraft.nbt.CompoundNBT;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.util.SharedSeedRandom;
@@ -96,7 +97,7 @@ public class StructureRegionManager {
     private final Path savePath;
     private final ServerWorld world;
     private final Long2ReferenceOpenHashMap<StructureRegion> structureRegions;
-    Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation = new Long2ReferenceOpenHashMap<>();
+    LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForLocation = new LongObjConcurrentHashMap<>();
 
     public StructureRegionManager(ServerWorld world) {
         this.savePath = ((ChunkManagerAccess) world.getChunkSource().chunkMap).getStorageFolder().toPath().resolve("structures");
@@ -219,7 +220,7 @@ public class StructureRegionManager {
      * @param completionService The service to submit creation to
      * @return The amount of path generators submitted to the {@code CompletionService}
      */
-    public int linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext, CompletionService<PathfindingPathGenerator> completionService) {
+    public int linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext, CompletionService<PathfindingPathGenerator> completionService) {
         int pathsSubmitted = 0;
         for (int neighborStructureGridX = -neighborRange; neighborStructureGridX < neighborRange; neighborStructureGridX++) {
             for (int neighborStructureGridZ = -neighborRange; neighborStructureGridZ < neighborRange; neighborStructureGridZ++) {

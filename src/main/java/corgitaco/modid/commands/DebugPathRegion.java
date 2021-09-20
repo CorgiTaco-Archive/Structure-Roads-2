@@ -29,7 +29,6 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Random;
 import java.util.Set;
@@ -142,7 +141,7 @@ public class DebugPathRegion {
                     g.drawLine(0, gridDrawZ + thickness, range, gridDrawZ+ thickness);
                 }
 
-                paintRegion(structureRegionManager, level, g, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);
+                paintRegion(structureRegionManager, g, range, image, searchRegionBlockMinX, searchRegionBlockMinZ, xSearch, zSearch);
             }
         }
 
@@ -161,7 +160,7 @@ public class DebugPathRegion {
         return 1;
     }
 
-    private static void paintRegion(StructureRegionManager regionManager, ServerWorld world, Graphics g, int range, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, int xSearch, int zSearch) {
+    private static void paintRegion(StructureRegionManager regionManager, Graphics g, int range, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, int xSearch, int zSearch) {
         long regionKey = regionKey(xSearch, zSearch);
         StructureRegion structureRegion = regionManager.getStructureRegion(regionKey);
         StructureData structureData = structureRegion.structureData(Structure.VILLAGE);
