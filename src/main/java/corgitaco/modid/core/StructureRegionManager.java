@@ -203,20 +203,20 @@ public class StructureRegionManager {
     }
 
     /**
-     *
-     * @param world
-     * @param seed
-     * @param biomeSource
-     * @param structure
+     * Submits the generation of paths to the {@code CompletionService}
+     * @param world The {@code ServerWorld} the paths should generate in
+     * @param seed The world's seed
+     * @param biomeSource The world's {@code BiomeSource}
+     * @param structure The structures to link
      * @param structureSeparationSettings
-     * @param dataForLocation
+     * @param dataForLocation Noise cache
      * @param name
      * @param neighborRange
      * @param structureGridX
      * @param structureGridZ
      * @param structurePosFromGrid
      * @param additionalStructureContext
-     * @param completionService
+     * @param completionService The service to submit creation to
      * @return The amount of path generators submitted to the {@code CompletionService}
      */
     public int linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext, CompletionService<PathfindingPathGenerator> completionService) {

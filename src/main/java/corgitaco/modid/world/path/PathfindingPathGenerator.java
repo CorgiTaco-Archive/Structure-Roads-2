@@ -101,8 +101,8 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         this.pathBox = pathBox(startPoint.getPos(), endPoint.getPos(), BOUNDING_BOX_EXPANSION);
 
         this.simplex = new SimplexNoiseGenerator(new Random(world.getSeed()));
-        int startY = startPoint.getPos().getY();
-        int endY = endPoint.getPos().getY();
+        int startY = this.startPoint.getPos().getY();
+        int endY = this.endPoint.getPos().getY();
         minY = Math.max(world.getSeaLevel(), Math.min(startY, endY) - 10);
         maxY = Math.max(world.getSeaLevel(), Math.max(startY, endY) + 10);
 
@@ -378,7 +378,7 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
 
     public static boolean testHeight(int minHeight, int maxHeight, int x, int z, ChunkGenerator generator) {
         int baseHeight = getHeight(x, z, generator);
-        return baseHeight >= minHeight && baseHeight <= maxHeight;
+        return !(baseHeight >= minHeight && baseHeight <= maxHeight);
     }
 
     /*public static boolean testHeight(int startY, int endY, int height, int seaLevel) {
