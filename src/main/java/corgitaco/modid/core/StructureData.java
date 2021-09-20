@@ -31,10 +31,21 @@ public class StructureData {
     private final Long2ReferenceOpenHashMap<Set<PathKey>> pathGeneratorReferences;
     private final StructureSeparationSettings config;
 
-    private final Map<PathKey, PathfindingPathGenerator> neighborPathGenerators = new HashMap<>();
+    private final ConcurrentHashMap<PathKey, PathfindingPathGenerator> neighborPathGenerators = new ConcurrentHashMap<>();
 
     public StructureData(StructureRegion structureRegion, Structure<?> structure) {
-        this(new CompoundNBT(), structureRegion, structure);
+        StructureSeparationSettings config = structureRegion.getServerLevel().getChunkSource().getGenerator().getSettings().getConfig(structure);
+        if (config == null) {
+            throw new IllegalArgumentException(String.format("No structure separation data for: \"%s\".", Registry.STRUCTURE_FEATURE.getKey(structure)));
+        }
+
+        this.config = config;
+        locationContextData = new Generated<>(new Long2ReferenceOpenHashMap<>());
+        pathGenerators = new Generated<>(new ConcurrentHashMap<>());
+        pathGeneratorReferences = new Long2ReferenceOpenHashMap<>();
+        this.region = structureRegion;
+        this.structure = structure;
+        this.world = structureRegion.getServerLevel();
     }
 
     public StructureData(CompoundNBT nbt, StructureRegion structureRegion, Structure<?> structure) {
