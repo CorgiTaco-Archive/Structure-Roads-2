@@ -1,10 +1,12 @@
 package corgitaco.modid.util;
 
 import com.mojang.serialization.Codec;
+import net.minecraft.util.RegistryKey;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.Util;
 import net.minecraft.util.math.MutableBoundingBox;
 import net.minecraft.util.registry.Registry;
+import net.minecraft.world.biome.Biome;
 import net.minecraft.world.gen.feature.structure.Structure;
 
 import java.util.stream.IntStream;
@@ -20,7 +22,5 @@ public class CodecUtil {
         return IntStream.of(boundingBox.x0, boundingBox.y0, boundingBox.z0, boundingBox.x1, boundingBox.y1, boundingBox.z1);
     }).stable();
 
-
-    public static final Codec<Long> LONG_KEY = Codec.LONG.xmap(i -> Long.toString(i), Long::parseLong).xmap(Long::parseLong, aLong -> Long.toString(aLong));
-
+    public static final Codec<RegistryKey<Biome>> BIOME_KEY = ResourceLocation.CODEC.xmap(resourceLocation -> RegistryKey.create(Registry.BIOME_REGISTRY, resourceLocation), RegistryKey::location);
 }
