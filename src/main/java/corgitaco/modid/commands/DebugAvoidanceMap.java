@@ -2,7 +2,6 @@ package corgitaco.modid.commands;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.ArgumentBuilder;
-import corgitaco.modid.world.WorldPathGenerator;
 import corgitaco.modid.world.path.PathGeneratorUtil;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
