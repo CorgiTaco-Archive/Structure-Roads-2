@@ -29,6 +29,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Random;
 import java.util.Set;
@@ -138,10 +139,9 @@ public class DebugPathRegion {
             }
         }
 
-        File file = FMLPaths.GAMEDIR.get().resolve("yeet.png").toFile();
+        File file = FMLPaths.GAMEDIR.get().resolve(level.getSeed() + ".png").toFile();
         if (file.exists())
             file.delete();
-
         try {
             file = new File(file.getAbsolutePath());
             ImageIO.write(image, "png", file);
