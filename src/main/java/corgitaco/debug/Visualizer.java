@@ -14,6 +14,7 @@ import java.util.Random;
 import static corgitaco.modid.world.path.PathGenerator.*;
 
 public class Visualizer {
+    /*
     static long startTime;
 
     private static final double WINDINESS = 2.5; //How windy it is (Doesn't affect much if above PI)
@@ -43,16 +44,16 @@ public class Visualizer {
         BlockPos startPos = new BlockPos(random.nextInt(range / 2), 0, random.nextInt(range / 2));
         BlockPos endPos = new BlockPos(random.nextInt(range / 2) + range / 2, 0, random.nextInt(range / 2) + range / 2);
 
-        MutableBoundingBox pathBox = pathBox(startPos, endPos);
+        //MutableBoundingBox pathBox = pathBox(startPos, endPos);
 
         drawSquare(startPos.getX(), startPos.getZ(), img, new Color(0, 100, 0).getRGB(), 10);
         drawSquare(endPos.getX(), endPos.getZ(), img, new Color(0, 100, 0).getRGB(), 10);
 
 
         int pointCount = 25;
-        List<PointWithGradient> points = getPointWithGradients(random, startPos, endPos, pathBox, pointCount, WINDINESS);
+        //List<PointWithGradient> points = getPointWithGradients(random, startPos, endPos, pathBox, pointCount, WINDINESS);
 
-        drawPoints(range, img, points);
+        //drawPoints(range, img, points);
 
         try {
             file = new File(pathname);
@@ -61,7 +62,7 @@ public class Visualizer {
             System.out.println(e);
         }
     }
-
+    */
     public static void drawSquare(int X, int Z, BufferedImage img, int color, int size) {
         for (int x = Math.max(0, X - size); x < Math.min(img.getWidth() - 1, X + size); x++) {
             for (int z = Math.max(0, Z - size); z < Math.min(img.getHeight() - 1, Z + size); z++) {
@@ -69,7 +70,7 @@ public class Visualizer {
             }
         }
     }
-
+    /*
     private static void drawPoints(int range, BufferedImage img, List<PointWithGradient> points) {
         int pointColor = new Color(186, 55, 13).getRGB();
         int controlColor = new Color(197, 32, 76).getRGB();
@@ -110,4 +111,5 @@ public class Visualizer {
             }
         }
     }
+    */
 }

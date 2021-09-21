@@ -1,7 +1,9 @@
 package corgitaco.modid.world.path;
 
+import com.google.common.io.BaseEncoding;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import corgitaco.modid.core.Registries;
 import corgitaco.modid.util.CodecUtil;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import net.minecraft.block.BlockState;
@@ -12,6 +14,8 @@ import net.minecraft.world.gen.feature.structure.Structure;
 import java.util.Set;
 
 public interface IPathGenerator<T> {
+    Codec<IPathGenerator> CODEC = Registries.PATH_GENERATOR_TYPE.dispatch("path_generator_type", IPathGenerator::getType, PathGeneratorType::getCodec);
+
     Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> getNodesByRegion();
     Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> getLightsByRegion();
     BlockState debugState();
@@ -28,6 +32,8 @@ public interface IPathGenerator<T> {
     void setLastLoadedGameTime(long gameTime);
 
     long lastLoadedGameTime();
+
+    PathGeneratorType<? extends IPathGenerator<T>> getType();
 
     class Point<T> {
 

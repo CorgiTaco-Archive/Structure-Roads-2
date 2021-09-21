@@ -5,7 +5,6 @@ import corgitaco.modid.core.StructureData;
 import corgitaco.modid.core.StructureRegionManager;
 import corgitaco.modid.structure.AdditionalStructureContext;
 import corgitaco.modid.world.path.IPathGenerator;
-import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -70,8 +69,8 @@ public class WorldPathGenerator extends Feature<PathConfig> {
         return true;
     }
 
-    private void generatePaths(ISeedReader world, Random random, Map<Biome.Category, BlockStateProvider> biomeStateProviders, BlockStateProvider defaultStateProvider, long currentChunk, long currentRegionKey, Collection<PathfindingPathGenerator> values, int pathSize) {
-        for (IPathGenerator<Structure<?>> pathGenerator : values) {
+    private void generatePaths(ISeedReader world, Random random, Map<Biome.Category, BlockStateProvider> biomeStateProviders, BlockStateProvider defaultStateProvider, long currentChunk, long currentRegionKey, Collection<IPathGenerator<?>> values, int pathSize) {
+        for (IPathGenerator<?> pathGenerator : values) {
 //            if (pathGenerator.getBoundingBox().intersects(pos.getX(), pos.getZ(), pos.getX(), pos.getZ())) {
                 Long2ReferenceOpenHashMap<Set<BlockPos>> chunkNodes = pathGenerator.getNodesByRegion().get(currentRegionKey);
                 if (chunkNodes.containsKey(currentChunk)) {
@@ -101,7 +100,7 @@ public class WorldPathGenerator extends Feature<PathConfig> {
         }
     }
 
-    private void generateLights(ISeedReader world, Random random, long currentChunk, IPathGenerator<Structure<?>> pathGenerator) {
+    private void generateLights(ISeedReader world, Random random, long currentChunk, IPathGenerator<?> pathGenerator) {
         Long2ReferenceOpenHashMap<Long2ReferenceOpenHashMap<Set<BlockPos>>> lightNodes = pathGenerator.getNodesByRegion();
         long regionKey = chunkToRegionKey(currentChunk);
         if (lightNodes.containsKey(regionKey)) {

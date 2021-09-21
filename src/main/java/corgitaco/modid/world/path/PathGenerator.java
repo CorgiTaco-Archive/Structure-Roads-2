@@ -10,8 +10,8 @@ import java.util.*;
 
 import static corgitaco.modid.core.StructureRegionManager.chunkToRegionKey;
 
-public class PathGenerator implements IPathGenerator<Structure<?>> {
-
+public class PathGenerator /*implements IPathGenerator<Structure<?>>*/ {
+    /*
     public static boolean DEBUG = false;
 
     private final MutableBoundingBox pathBox;
@@ -217,11 +217,11 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
 
         return new MutableBoundingBox(Math.min(startPosX, endPosX) - expansion, 0, Math.min(startPosZ, endPosZ) - expansion, Math.max(startPosX, endPosX) + expansion, 0, Math.max(startPosZ, endPosZ) + expansion);
     }
-
+    */
     public static BlockPos getLerpedBlockPos(BlockPos start, BlockPos end, double lerp) {
         return new BlockPos(MathHelper.lerp(lerp, start.getX(), end.getX()), 0, MathHelper.lerp(lerp, start.getZ(), end.getZ()));
     }
-
+    /*
     public static List<BlockPos> getBezierPoints(PointWithGradient start, PointWithGradient end, double lerpIncrement) {
         BlockPos startPos = start.getPos();
         BlockPos endPos = end.getPos();
@@ -263,7 +263,7 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
 
     public MutableBoundingBox getPathBox() {
         return pathBox;
-    }
+    }*/
 
     public static class PointWithGradient {
         private final BlockPos pos;
@@ -311,5 +311,4 @@ public class PathGenerator implements IPathGenerator<Structure<?>> {
             return y;
         }
     }
-
 }

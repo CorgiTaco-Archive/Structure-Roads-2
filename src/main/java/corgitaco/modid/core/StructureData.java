@@ -5,6 +5,7 @@ import com.mojang.serialization.DataResult;
 import corgitaco.modid.Main;
 import corgitaco.modid.mixin.access.UtilAccess;
 import corgitaco.modid.structure.AdditionalStructureContext;
+import corgitaco.modid.world.path.IPathGenerator;
 import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
@@ -24,14 +25,14 @@ import java.util.stream.Collectors;
 public class StructureData {
     private static final ExecutorService PATH_EXECUTOR = UtilAccess.invokeMakeExecutor("path"); //TODO: Find a better way / time to create this
     private final Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> locationContextData;
-    private final Generated<Map<PathKey, PathfindingPathGenerator>> pathGenerators;
+    private final Generated<Map<PathKey, IPathGenerator<?>>> pathGenerators;
     private final StructureRegion region;
     private final ServerWorld world;
     private final Structure<?> structure;
     private final Long2ReferenceOpenHashMap<Set<PathKey>> pathGeneratorReferences;
     private final StructureSeparationSettings config;
 
-    private final ConcurrentHashMap<PathKey, PathfindingPathGenerator> neighborPathGenerators = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<PathKey, IPathGenerator<?>> neighborPathGenerators = new ConcurrentHashMap<>();
 
     public StructureData(StructureRegion structureRegion, Structure<?> structure) {
         StructureSeparationSettings config = structureRegion.getServerLevel().getChunkSource().getGenerator().getSettings().getConfig(structure);
@@ -75,13 +76,13 @@ public class StructureData {
         return locationContextData.value;
     }
 
-    public Map<PathKey, PathfindingPathGenerator> getPathGenerators(boolean loadAll) {
+    public Map<PathKey, IPathGenerator<?>> getPathGenerators(boolean loadAll) {
         if (!pathGenerators.generated && loadAll) {
             long startTime = System.currentTimeMillis();
             StructureRegionManager structureRegionManager = ((StructureRegionManager.Access) this.world).getStructureRegionManager();
 
             Long2ReferenceOpenHashMap<AdditionalStructureContext> locationContextData = this.getLocationContextData(true);
-            CompletionService<PathfindingPathGenerator> completionService = new ExecutorCompletionService<>(PATH_EXECUTOR);
+            CompletionService<IPathGenerator<?>> completionService = new ExecutorCompletionService<>(PATH_EXECUTOR);
             int pathsSubmitted = 0;
             for (Long2ReferenceMap.Entry<AdditionalStructureContext> entry : locationContextData.long2ReferenceEntrySet()) {
                 long structurePos = entry.getLongKey();
@@ -95,7 +96,7 @@ public class StructureData {
             int pathsCreated = 0;
             while (pathsCreated < pathsSubmitted){
                 try {
-                    PathfindingPathGenerator pathGenerator = completionService.poll(10, TimeUnit.MINUTES).get(); //TODO: This will throw a NullPointerException upon timeout should handle this better. Also, this is a very long timeout
+                    IPathGenerator pathGenerator = completionService.poll(10, TimeUnit.MINUTES).get(); //TODO: This will throw a NullPointerException upon timeout should handle this better. Also, this is a very long timeout
                     structureRegionManager.addPath(pathGenerator, this.structure);
                     pathsCreated++;
                 } catch (ExecutionException | InterruptedException e) {
@@ -113,7 +114,7 @@ public class StructureData {
         return pathGeneratorReferences;
     }
 
-    public Map<PathKey, PathfindingPathGenerator> getPathGeneratorNeighbors() {
+    public Map<PathKey, IPathGenerator<?>> getPathGeneratorNeighbors() {
         StructureRegionManager structureRegionManager = ((StructureRegionManager.Access) this.world).getStructureRegionManager();
 
         for (Long2ReferenceMap.Entry<Set<PathKey>> entry : this.pathGeneratorReferences.long2ReferenceEntrySet()) {
@@ -123,12 +124,12 @@ public class StructureData {
             Set<PathKey> pathKeys = entry.getValue();
             for (PathKey pathKey : pathKeys) {
                 this.neighborPathGenerators.computeIfAbsent(pathKey, (pathKey1 -> {
-                    PathfindingPathGenerator pathfindingPathGenerator = structureRegion.structureData(this.structure).getPathGenerators(true).get(pathKey1);
-                    if (pathfindingPathGenerator == null) {
+                    IPathGenerator pathGenerator = structureRegion.structureData(this.structure).getPathGenerators(true).get(pathKey1);
+                    if (pathGenerator == null) {
                         throw new IllegalStateException("Value not found!");
                     }
 
-                    return pathfindingPathGenerator;
+                    return pathGenerator;
                 }));
             }
         }
@@ -146,14 +147,14 @@ public class StructureData {
         return new Generated<>(structureToContext, nbt.getBoolean("generated"));
     }
 
-    public static Generated<Map<PathKey, PathfindingPathGenerator>> allRegionPathGeneratorFromFile(CompoundNBT nbt) {
-        Map<PathKey, PathfindingPathGenerator> pathGenerators = new HashMap<>();
+    public static Generated<Map<PathKey, IPathGenerator<?>>> allRegionPathGeneratorFromFile(CompoundNBT nbt) {
+        Map<PathKey, IPathGenerator<?>> pathGenerators = new HashMap<>();
         if (nbt.contains("path_generators", 10)) {
             CompoundNBT pathGeneratorsNBT = nbt.getCompound("path_generators");
             for (String key : nbt.getAllKeys()) {
                 if (!key.equals("generated")) {
                     PathKey pathKey = new PathKey(key);
-                    pathGenerators.put(pathKey, PathfindingPathGenerator.CODEC.decode(NBTDynamicOps.INSTANCE, pathGeneratorsNBT.get(pathKey.compoundKey())).result().get().getFirst());
+                    pathGenerators.put(pathKey, IPathGenerator.CODEC.decode(NBTDynamicOps.INSTANCE, pathGeneratorsNBT.get(pathKey.compoundKey())).result().get().getFirst());
                 }
             }
         }
@@ -178,8 +179,8 @@ public class StructureData {
         CompoundNBT pathGenerators = new CompoundNBT();
         pathGenerators.putBoolean("generated", this.pathGenerators.generated);
 
-        this.pathGenerators.value.forEach((pathKey, pathfindingPathGenerator) -> {
-            DataResult<INBT> dataResult = PathfindingPathGenerator.CODEC.encodeStart(NBTDynamicOps.INSTANCE, pathfindingPathGenerator);
+        this.pathGenerators.value.forEach((pathKey, pathGenerator) -> {
+            DataResult<INBT> dataResult = IPathGenerator.CODEC.encodeStart(NBTDynamicOps.INSTANCE, pathGenerator);
             Optional<INBT> result = dataResult.result();
             if (result.isPresent()) {
                 pathGenerators.put(pathKey.compoundKey(), result.get());

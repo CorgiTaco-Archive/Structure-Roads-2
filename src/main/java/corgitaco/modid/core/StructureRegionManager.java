@@ -220,7 +220,7 @@ public class StructureRegionManager {
      * @param completionService The service to submit creation to
      * @return The amount of path generators submitted to the {@code CompletionService}
      */
-    public int linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext, CompletionService<PathfindingPathGenerator> completionService) {
+    public int linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext, CompletionService<IPathGenerator<?>> completionService) {
         int pathsSubmitted = 0;
         for (int neighborStructureGridX = -neighborRange; neighborStructureGridX < neighborRange; neighborStructureGridX++) {
             for (int neighborStructureGridZ = -neighborRange; neighborStructureGridZ < neighborRange; neighborStructureGridZ++) {
@@ -256,7 +256,7 @@ public class StructureRegionManager {
         return pathsSubmitted;
     }
 
-    public void addPath(PathfindingPathGenerator pathGenerator, Structure<?> structure){
+    public void addPath(IPathGenerator pathGenerator, Structure<?> structure){
         if (!pathGenerator.dispose()) {
             long saveRegionKey = pathGenerator.saveRegion();
             StructureData.PathKey pathGeneratorKey = new StructureData.PathKey(getChunkFromPos(pathGenerator.getStart().getPos()), getChunkFromPos(pathGenerator.getEnd().getPos()));

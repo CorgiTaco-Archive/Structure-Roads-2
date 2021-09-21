@@ -454,6 +454,11 @@ public class PathfindingPathGenerator implements IPathGenerator<Structure<?>> {
         return 0;
     }
 
+    @Override
+    public PathGeneratorType<? extends IPathGenerator<Structure<?>>> getType() {
+        return PathGeneratorType.PATHFINDING_PATH_GENERATOR;
+    }
+
     public static class Tile implements Comparable {
         private Tile bestPrev = null;
         private int distFromStart = Integer.MAX_VALUE;

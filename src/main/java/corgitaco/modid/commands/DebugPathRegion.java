@@ -176,8 +176,8 @@ public class DebugPathRegion {
         paintPathGenerators(g, image, searchRegionBlockMinX, searchRegionBlockMinZ, regionKey, structureData.getPathGeneratorNeighbors().values(), random);
     }
 
-    private static void paintPathGenerators(Graphics g, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, long regionKey, Collection<PathfindingPathGenerator> pathGenerators, Random random) {
-        for (IPathGenerator<Structure<?>> pathGenerator : pathGenerators) {
+    private static void paintPathGenerators(Graphics g, BufferedImage image, int searchRegionBlockMinX, int searchRegionBlockMinZ, long regionKey, Collection<IPathGenerator<?>> pathGenerators, Random random) {
+        for (IPathGenerator<?> pathGenerator : pathGenerators) {
             Color color = new Color(random.nextInt(251) + 5, random.nextInt(251) + 5, random.nextInt(251) + 5);
             int rgb = color.getRGB();
 
