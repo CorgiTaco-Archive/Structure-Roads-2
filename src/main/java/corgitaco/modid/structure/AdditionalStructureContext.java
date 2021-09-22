@@ -3,7 +3,10 @@ package corgitaco.modid.structure;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongArraySet;
 import net.minecraft.nbt.CompoundNBT;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 
+import javax.annotation.Nullable;
 import java.util.Set;
 
 public class AdditionalStructureContext {
@@ -11,6 +14,7 @@ public class AdditionalStructureContext {
     private final String name;
     private int tier;
     private final Set<Long> connections;
+    @Nullable private ChunkPos harbourPos;
 
     public AdditionalStructureContext(String name) {
         this(name, 0, new LongArraySet());
@@ -50,7 +54,15 @@ public class AdditionalStructureContext {
         this.tier = tier;
     }
 
+    public void setHarbourPos(ChunkPos harbourPos) {
+        this.harbourPos = harbourPos;
+    }
+
     public Set<Long> getConnections() {
         return connections;
+    }
+
+    public ChunkPos getHarbourPos() {
+        return harbourPos;
     }
 }

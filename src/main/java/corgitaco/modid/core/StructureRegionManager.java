@@ -222,6 +222,22 @@ public class StructureRegionManager {
      */
     public int linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext, CompletionService<IPathGenerator<?>> completionService) {
         int pathsSubmitted = 0;
+        if(additionalStructureContext.getHarbourPos() != null){
+            completionService.submit(() -> {
+                IPathGenerator<?> pathGenerator = new PathfindingPathGenerator(
+                        world,
+                        new IPathGenerator.Point<>(structure, getPosFromChunk(structurePosFromGrid)),
+                        new IPathGenerator.Point<>(structure, getPosFromChunk(additionalStructureContext.getHarbourPos().toLong())),
+                        dataForLocation);
+
+                if(pathGenerator.dispose()){
+                    additionalStructureContext.setHarbourPos(null);
+                }
+                return pathGenerator;
+            });
+            pathsSubmitted++;
+        }
+
         for (int neighborStructureGridX = -neighborRange; neighborStructureGridX < neighborRange; neighborStructureGridX++) {
             for (int neighborStructureGridZ = -neighborRange; neighborStructureGridZ < neighborRange; neighborStructureGridZ++) {
                 if (neighborStructureGridX == structureGridX && neighborStructureGridZ == structureGridZ) {
