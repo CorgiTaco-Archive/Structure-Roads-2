@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import corgitaco.modid.Main;
 import corgitaco.modid.commands.DebugAvoidanceMap;
 import corgitaco.modid.commands.DebugPathRegion;
+import corgitaco.modid.commands.GetVillageInfo;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
 import org.spongepowered.asm.mixin.Final;
@@ -26,6 +27,7 @@ public abstract class MixinCommands {
         LiteralArgumentBuilder<CommandSource> requires = Commands.literal(Main.MOD_ID).requires(commandSource -> commandSource.hasPermission(3));
         requires.then(DebugPathRegion.register(dispatcher));
         requires.then(DebugAvoidanceMap.register(dispatcher));
+        requires.then(GetVillageInfo.register(dispatcher));
         dispatcher.register(requires);
     }
 }
