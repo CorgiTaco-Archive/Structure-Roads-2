@@ -15,6 +15,7 @@ import net.minecraft.util.SharedSeedRandom;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.SectionPos;
+import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeManager;
 import net.minecraft.world.biome.provider.BiomeProvider;
 import net.minecraft.world.gen.feature.structure.Structure;
@@ -31,6 +32,7 @@ import java.util.Random;
 import java.util.concurrent.CompletionService;
 
 public class StructureRegionManager {
+    private static final int HARBOUR_SEARCH_DISTANCE = 12;
     public static final String[] NAMES = new String[]{
             "Perthlochry",
             "Bournemouth",
@@ -197,6 +199,8 @@ public class StructureRegionManager {
                 }
 
                 AdditionalStructureContext additionalStructureContext = new AdditionalStructureContext(NAMES[random.nextInt(NAMES.length - 1)]);
+                additionalStructureContext.setHarbourPos(getHarbourPos(structurePosFromGrid));
+
                 Long2ReferenceOpenHashMap<AdditionalStructureContext> structureData = structureRegion.structureData(structure).getLocationContextData(false);
                 structureData.putIfAbsent(structurePosFromGrid, additionalStructureContext);
             }
@@ -240,7 +244,7 @@ public class StructureRegionManager {
 
         for (int neighborStructureGridX = -neighborRange; neighborStructureGridX < neighborRange; neighborStructureGridX++) {
             for (int neighborStructureGridZ = -neighborRange; neighborStructureGridZ < neighborRange; neighborStructureGridZ++) {
-                if (neighborStructureGridX == structureGridX && neighborStructureGridZ == structureGridZ) {
+                if (neighborStructureGridX == 0 && neighborStructureGridZ == 0) {
                     continue;
                 }
                 long neighborStructurePosFromGrid = getStructurePosFromGrid(structureGridX + neighborStructureGridX, structureGridZ + neighborStructureGridZ, seed, biomeSource, structure, structureSeparationSettings);
@@ -252,13 +256,13 @@ public class StructureRegionManager {
 
                 long neighborStructureRegionKey = chunkToRegionKey(neighborStructurePosFromGrid);
 
-                AdditionalStructureContext neighborAdditionalStructureContext = new AdditionalStructureContext(name);
-                Long2ReferenceOpenHashMap<AdditionalStructureContext> neighborStructureData = this.structureRegions.computeIfAbsent(neighborStructureRegionKey, (key) -> new StructureRegion(key, world)).structureData(structure).getLocationContextData(false);
+                //AdditionalStructureContext neighborAdditionalStructureContext = new AdditionalStructureContext(name);
+                Long2ReferenceOpenHashMap<AdditionalStructureContext> neighborStructureData = this.structureRegions.computeIfAbsent(neighborStructureRegionKey, (key) -> new StructureRegion(key, world)).structureData(structure).getLocationContextData(true);
 
-                neighborStructureData.putIfAbsent(neighborStructurePosFromGrid, additionalStructureContext);
+                AdditionalStructureContext neighborAdditionalStructureContext = neighborStructureData.putIfAbsent(neighborStructurePosFromGrid, additionalStructureContext);
 
                 additionalStructureContext.getConnections().add(neighborStructurePosFromGrid);
-                neighborAdditionalStructureContext.getConnections().add(neighborStructurePosFromGrid);
+                neighborAdditionalStructureContext.getConnections().add(structurePosFromGrid);
 
 
                 SharedSeedRandom structureRandom = new SharedSeedRandom();
@@ -290,6 +294,42 @@ public class StructureRegionManager {
             }
         }
     }
+    private @Nullable ChunkPos getHarbourPos(long position) {
+        Random random = new Random(position);
+
+        if(true) {
+            final int chunkX = ChunkPos.getX(position);
+            final int chunkZ = ChunkPos.getZ(position);
+
+            for(int i = 0; i < 5; i++){
+                final float angle = (float) (random.nextFloat() * 2 * Math.PI);
+                final int dx = (int) (HARBOUR_SEARCH_DISTANCE * Math.cos(angle));
+                final int dz = (int) (HARBOUR_SEARCH_DISTANCE * Math.sin(angle));
+
+                final int maxDelta = Math.max(Math.abs(dx), Math.abs(dz));
+
+                int initialTestX = chunkX + dx;
+                int initialTestZ = chunkZ + dz;
+
+                Biome biome = world.getUncachedNoiseBiome((initialTestX << 2) + 2, 60, (initialTestZ << 2) + 2);
+                if(biome.getBiomeCategory().equals(Biome.Category.OCEAN)){
+                    for(int testDistance = maxDelta - 1; testDistance > 0; testDistance--){
+                        float t = testDistance / (float) maxDelta;
+
+                        if(!world.getNoiseBiome(((int) (chunkX + dx * t) << 2) + 2, 60, ((int) (chunkZ + dz * t) << 2) + 2).getBiomeCategory().equals(Biome.Category.OCEAN)){
+                            ChunkPos pos = new ChunkPos((int) (chunkX + dx * t), (int) (chunkZ + dz * t));
+                            System.out.println("Village at " + chunkToBlock(new ChunkPos(position)) + " has a harbour at " + chunkToBlock(pos));
+                            System.out.println("Detected ocean at " + chunkToBlock(initialTestX, initialTestZ));
+                            return pos;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
 
     public static Pair<Integer, Integer> getGridXZ(long structureChunkPos, int spacing) {
         int chunkX = ChunkPos.getX(structureChunkPos);
@@ -383,6 +423,14 @@ public class StructureRegionManager {
         int chunkX = ChunkPos.getX(SectionPos.blockToSectionCoord(pos.getX()));
         int chunkZ = ChunkPos.getZ(SectionPos.blockToSectionCoord(pos.getZ()));
         return ChunkPos.asLong(chunkX, chunkZ);
+    }
+
+    private static BlockPos chunkToBlock(ChunkPos pos){
+        return new BlockPos(pos.x * 16 + 8, 0, pos.z * 16 + 8);
+    }
+
+    private static BlockPos chunkToBlock(int x, int z){
+        return new BlockPos(x * 16 + 8, 0, z * 16 + 8);
     }
 
     public interface Access {

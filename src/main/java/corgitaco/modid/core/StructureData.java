@@ -36,8 +36,6 @@ public class StructureData {
     private final Long2ReferenceOpenHashMap<Set<PathKey>> pathGeneratorReferences;
     private final StructureSeparationSettings config;
 
-    private static final int HARBOUR_SEARCH_DISTANCE = 12;
-
     private final ConcurrentHashMap<PathKey, IPathGenerator<?>> neighborPathGenerators = new ConcurrentHashMap<>();
 
     public StructureData(StructureRegion structureRegion, Structure<?> structure) {
@@ -77,58 +75,10 @@ public class StructureData {
             ChunkGenerator generator = this.world.getChunkSource().generator;
             structureRegionManager.collectRegionStructures(this.world.getSeed(), generator.getBiomeSource(), this.structure, this.config, this.region.getPos());
 
-            for(Long2ReferenceMap.Entry<AdditionalStructureContext> entry : locationContextData.value.long2ReferenceEntrySet()){
-                entry.getValue().setHarbourPos(getHarbourPos(entry.getLongKey()));
-            }
             locationContextData.setGenerated();
         }
 
         return locationContextData.value;
-    }
-
-    //This could probably be optimized
-    private @Nullable ChunkPos getHarbourPos(long position) {
-        Random random = this.world.random;
-
-        if(true) {
-            final int chunkX = ChunkPos.getX(position);
-            final int chunkZ = ChunkPos.getZ(position);
-
-            for(int i = 0; i < 5; i++){
-                final float angle = (float) (random.nextFloat() * 2 * Math.PI);
-                final int dx = (int) (HARBOUR_SEARCH_DISTANCE * Math.cos(angle));
-                final int dz = (int) (HARBOUR_SEARCH_DISTANCE * Math.sin(angle));
-
-                final int maxDelta = Math.max(Math.abs(dx), Math.abs(dz));
-
-                int initialTestX = chunkX + dx;
-                int initialTestZ = chunkZ + dz;
-
-                Biome biome = world.getUncachedNoiseBiome((initialTestX << 2) + 2, 60, (initialTestZ << 2) + 2);
-                if(biome.getBiomeCategory().equals(Biome.Category.OCEAN)){
-                    for(int testDistance = maxDelta - 1; testDistance > 0; testDistance--){
-                        float t = testDistance / (float) maxDelta;
-
-                        if(!world.getNoiseBiome(((int) (chunkX + dx * t) << 2) + 2, 60, ((int) (chunkZ + dz * t) << 2) + 2).getBiomeCategory().equals(Biome.Category.OCEAN)){
-                            ChunkPos pos = new ChunkPos((int) (chunkX + dx * t), (int) (chunkZ + dz * t));
-                            System.out.println("Village at " + chunkToBlock(new ChunkPos(position)) + " has a harbour at " + chunkToBlock(pos));
-                            System.out.println("Detected ocean at " + chunkToBlock(initialTestX, initialTestZ));
-                            return pos;
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static BlockPos chunkToBlock(ChunkPos pos){
-        return new BlockPos(pos.x * 16 + 8, 0, pos.z * 16 + 8);
-    }
-
-    private static BlockPos chunkToBlock(int x, int z){
-        return new BlockPos(x * 16 + 8, 0, z * 16 + 8);
     }
 
     public Map<PathKey, IPathGenerator<?>> getPathGenerators(boolean loadAll) {

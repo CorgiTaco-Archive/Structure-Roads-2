@@ -10,15 +10,18 @@ import corgitaco.modid.structure.AdditionalStructureContext;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
+import net.minecraft.command.impl.LocateCommand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextComponent;
-import net.minecraft.util.text.TranslationTextComponent;
+import net.minecraft.util.text.*;
+import net.minecraft.util.text.event.ClickEvent;
 import net.minecraft.world.gen.feature.structure.Structure;
 import net.minecraft.world.server.ServerWorld;
 import org.graalvm.compiler.core.common.type.ArithmeticOpTable;
+
+import java.util.Collection;
+import java.util.List;
 
 public class GetVillageInfo {
     private static final int VILLAGE_CONTEXT_SEARCH_RANGE = 16;
@@ -50,10 +53,17 @@ public class GetVillageInfo {
             if(villageContext.getHarbourPos() != null){
                 int harbourX = villageContext.getHarbourPos().x * 16 + 8;
                 int harbourZ = villageContext.getHarbourPos().z * 16 + 8;
-                BlockPos harbourPos = StructureRegionManager.getPosFromChunk(villageContext.getHarbourPos().toLong());
-                source.sendSuccess(new TranslationTextComponent("Harbour: " + harbourX +", " + harbourZ), false);
+                source.sendSuccess(new TranslationTextComponent("Harbour: " + "[" + harbourX + " " + harbourZ + "]"), false);
             }else{
                 source.sendSuccess(new TranslationTextComponent("Village has no harbour"), false);
+            }
+            Collection<Long> connections = villageContext.getConnections();
+            for(long connection : connections){
+                int x = ChunkPos.getX(connection) * 16 + 8;
+                int z = ChunkPos.getZ(connection) * 16 + 8;
+                source.sendSuccess(new TranslationTextComponent("Connected To: " + "[" + x + " " + z + "]").withStyle((style) -> {
+                    return style.withColor(TextFormatting.GREEN).withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/tp @s " + x + " ~ " + z));
+                }), true);
             }
         }else {
             source.sendFailure(new TranslationTextComponent("Could not find a village (Searched up to " + VILLAGE_CONTEXT_SEARCH_RANGE * 16 + " blocks away)"));
