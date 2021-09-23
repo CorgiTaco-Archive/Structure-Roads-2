@@ -30,6 +30,7 @@ public class StructureData {
     private static final ExecutorService PATH_EXECUTOR = UtilAccess.invokeMakeExecutor("path"); //TODO: Find a better way / time to create this
     private final Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> locationContextData;
     private final Generated<Map<PathKey, IPathGenerator<?>>> pathGenerators;
+    private final Generated<List<ChunkPos>> harbours;
     private final StructureRegion region;
     private final ServerWorld world;
     private final Structure<?> structure;
@@ -51,6 +52,7 @@ public class StructureData {
         this.region = structureRegion;
         this.structure = structure;
         this.world = structureRegion.getServerLevel();
+        this.harbours = new Generated<>(new ArrayList<>());
     }
 
     public StructureData(CompoundNBT nbt, StructureRegion structureRegion, Structure<?> structure) {
@@ -60,8 +62,9 @@ public class StructureData {
         }
 
         this.config = config;
+        this.harbours = new Generated<>(new ArrayList<>());
 
-        locationContextData = allRegionStructurePositionsFromFile(nbt);
+        locationContextData = allRegionStructurePositionsFromFile(nbt, harbours.value);
         pathGenerators = allRegionPathGeneratorFromFile(nbt);
         pathGeneratorReferences = allPathGeneratorReferencesFromFile(nbt);
         this.region = structureRegion;
@@ -73,9 +76,10 @@ public class StructureData {
         if (!locationContextData.generated && loadAll) {
             StructureRegionManager structureRegionManager = ((StructureRegionManager.Access) this.world).getStructureRegionManager();
             ChunkGenerator generator = this.world.getChunkSource().generator;
-            structureRegionManager.collectRegionStructures(this.world.getSeed(), generator.getBiomeSource(), this.structure, this.config, this.region.getPos());
+            structureRegionManager.collectRegionStructures(this.world.getSeed(), generator.getBiomeSource(), this.structure, this.config, this.region.getPos(), this.harbours.value);
 
             locationContextData.setGenerated();
+            harbours.setGenerated();
         }
 
         return locationContextData.value;
@@ -142,11 +146,15 @@ public class StructureData {
         return this.neighborPathGenerators;
     }
 
-    public static Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> allRegionStructurePositionsFromFile(CompoundNBT nbt) {
+    public static Generated<Long2ReferenceOpenHashMap<AdditionalStructureContext>> allRegionStructurePositionsFromFile(CompoundNBT nbt, List<ChunkPos> harbours) {
         Long2ReferenceOpenHashMap<AdditionalStructureContext> structureToContext = new Long2ReferenceOpenHashMap<>();
         for (String key : nbt.getAllKeys()) {
             if (!key.equals("generated")) {
-                structureToContext.put(Long.parseLong(key), new AdditionalStructureContext(nbt.getCompound(key)));
+                AdditionalStructureContext structureContext = new AdditionalStructureContext(nbt.getCompound(key));
+                structureToContext.put(Long.parseLong(key), structureContext);
+                if(structureContext.getHarbourPos() != null){
+                    harbours.add(structureContext.getHarbourPos());
+                }
             }
         }
         return new Generated<>(structureToContext, nbt.getBoolean("generated"));
@@ -214,6 +222,10 @@ public class StructureData {
         }
         nbt.put("structureData", pathGeneratorReferences);
         return nbt;
+    }
+
+    public List<ChunkPos> getHarbours() {
+        return harbours.value;
     }
 
 

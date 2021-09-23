@@ -19,6 +19,7 @@ import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeManager;
 import net.minecraft.world.biome.provider.BiomeProvider;
 import net.minecraft.world.gen.feature.structure.Structure;
+import net.minecraft.world.gen.placement.RangePlacement;
 import net.minecraft.world.gen.settings.StructureSeparationSettings;
 import net.minecraft.world.server.ServerWorld;
 
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletionService;
 
@@ -156,7 +158,7 @@ public class StructureRegionManager {
         }
     }
 
-    public void collectRegionStructures(long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, long regionKey) {
+    public void collectRegionStructures(long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, long regionKey, List<ChunkPos> harbours) {
         long startTime = System.currentTimeMillis();
 
         int regionX = getX(regionKey);
@@ -176,13 +178,13 @@ public class StructureRegionManager {
         int activeMaxGridX = Math.floorDiv(activeMaxChunkX, spacing);
         int activeMaxGridZ = Math.floorDiv(activeMaxChunkZ, spacing);
 
-        collectRegionStructures(seed, biomeSource, structure, structureSeparationSettings, activeMinGridX, activeMinGridZ, activeMaxGridX, activeMaxGridZ);
+        collectRegionStructures(seed, biomeSource, structure, harbours, structureSeparationSettings, activeMinGridX, activeMinGridZ, activeMaxGridX, activeMaxGridZ);
 
         System.out.println("Generated links and paths for region (" + regionX + ", " + regionZ + ") in " + (System.currentTimeMillis() - startTime) + " ms");
     }
 
 
-    private void collectRegionStructures(long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, int activeMinGridX, int activeMinGridZ, int activeMaxGridX, int activeMaxGridZ) {
+    private void collectRegionStructures(long seed, BiomeProvider biomeSource, Structure<?> structure, List<ChunkPos> harbours, StructureSeparationSettings structureSeparationSettings, int activeMinGridX, int activeMinGridZ, int activeMaxGridX, int activeMaxGridZ) {
         Random random = new Random(seed);
         int neighborRange = 1;
 
@@ -200,6 +202,9 @@ public class StructureRegionManager {
 
                 AdditionalStructureContext additionalStructureContext = new AdditionalStructureContext(NAMES[random.nextInt(NAMES.length - 1)]);
                 additionalStructureContext.setHarbourPos(getHarbourPos(structurePosFromGrid));
+                if(additionalStructureContext.getHarbourPos() != null){
+                    harbours.add(additionalStructureContext.getHarbourPos());
+                }
 
                 Long2ReferenceOpenHashMap<AdditionalStructureContext> structureData = structureRegion.structureData(structure).getLocationContextData(false);
                 structureData.putIfAbsent(structurePosFromGrid, additionalStructureContext);
@@ -226,15 +231,20 @@ public class StructureRegionManager {
      */
     public int linkNeighbors(ServerWorld world, long seed, BiomeProvider biomeSource, Structure<?> structure, StructureSeparationSettings structureSeparationSettings, LongObjConcurrentHashMap<LongObjConcurrentHashMap<DataForChunk>> dataForLocation, String name, int neighborRange, int structureGridX, int structureGridZ, long structurePosFromGrid, AdditionalStructureContext additionalStructureContext, CompletionService<IPathGenerator<?>> completionService) {
         int pathsSubmitted = 0;
+        Random random = new Random(structurePosFromGrid);
         if(additionalStructureContext.getHarbourPos() != null){
             completionService.submit(() -> {
-                IPathGenerator<?> pathGenerator = new PathfindingPathGenerator(
+                PathfindingPathGenerator pathGenerator = new PathfindingPathGenerator(
                         world,
                         new IPathGenerator.Point<>(structure, getPosFromChunk(structurePosFromGrid)),
                         new IPathGenerator.Point<>(structure, getPosFromChunk(additionalStructureContext.getHarbourPos().toLong())),
                         dataForLocation);
-
                 if(pathGenerator.dispose()){
+                    long currentRegionKey = chunkToRegionKey(structurePosFromGrid);
+                    StructureData structureData = structureRegions.computeIfAbsent(currentRegionKey, (key) -> new StructureRegion(key, world)).structureData(structure);
+                    synchronized (structureData.getHarbours()){
+                        structureData.getHarbours().remove(additionalStructureContext.getHarbourPos());
+                    }
                     additionalStructureContext.setHarbourPos(null);
                 }
                 return pathGenerator;

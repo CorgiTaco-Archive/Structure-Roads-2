@@ -22,6 +22,8 @@ public class AdditionalStructureContext {
 
     public AdditionalStructureContext(CompoundNBT nbt) {
         this(nbt.getString("name"), nbt.getInt("tier"), new LongArraySet(nbt.getLongArray("connections")));
+
+        harbourPos = readChunkPos(nbt.getCompound("harbour"));
     }
 
     public AdditionalStructureContext(String name, int tier, Set<Long> connections) {
@@ -43,6 +45,9 @@ public class AdditionalStructureContext {
         compoundNBT.putString("name", this.name);
         compoundNBT.putInt("tier", this.tier);
         compoundNBT.putLongArray("connections", new LongArrayList(this.connections));
+        if(harbourPos != null){
+            compoundNBT.put("harbour", writeChunkPos(harbourPos));
+        }
         return compoundNBT;
     }
 
@@ -62,7 +67,20 @@ public class AdditionalStructureContext {
         return connections;
     }
 
-    public ChunkPos getHarbourPos() {
+    public ChunkPos getHarbourPos(){
         return harbourPos;
+    }
+
+    private static CompoundNBT writeChunkPos(ChunkPos chunk){
+        CompoundNBT nbt = new CompoundNBT();
+        nbt.putInt("x", chunk.x);
+        nbt.putInt("z", chunk.z);
+        return nbt;
+    }
+
+    private static ChunkPos readChunkPos(CompoundNBT nbt){
+        if(nbt == null) return null;
+
+        return new ChunkPos(nbt.getInt("x"), nbt.getInt("z"));
     }
 }

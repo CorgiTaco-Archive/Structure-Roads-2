@@ -8,6 +8,18 @@ import corgitaco.modid.world.path.IPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.entity.merchant.villager.VillagerEntity;
+import net.minecraft.entity.merchant.villager.VillagerTrades;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.container.Slot;
+import net.minecraft.item.FilledMapItem;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.nbt.CompoundNBT;
+import net.minecraft.nbt.ListNBT;
+import net.minecraft.tileentity.BarrelTileEntity;
+import net.minecraft.tileentity.ChestTileEntity;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.Direction;
 import net.minecraft.util.Mirror;
 import net.minecraft.util.ResourceLocation;
@@ -16,17 +28,24 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.SectionPos;
 import net.minecraft.world.ISeedReader;
+import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.Heightmap;
 import net.minecraft.world.gen.blockstateprovider.BlockStateProvider;
 import net.minecraft.world.gen.feature.Feature;
+import net.minecraft.world.gen.feature.structure.ShipwreckPieces;
+import net.minecraft.world.gen.feature.structure.ShipwreckStructure;
 import net.minecraft.world.gen.feature.structure.Structure;
 import net.minecraft.world.gen.feature.template.JigsawReplacementStructureProcessor;
 import net.minecraft.world.gen.feature.template.PlacementSettings;
 import net.minecraft.world.gen.feature.template.Template;
 import net.minecraft.world.gen.feature.template.TemplateManager;
 import net.minecraft.world.server.ServerWorld;
+import net.minecraft.world.storage.MapData;
+import net.minecraft.world.storage.MapDecoration;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.items.CapabilityItemHandler;
 
 import java.util.*;
 
@@ -63,13 +82,13 @@ public class WorldPathGenerator extends Feature<PathConfig> {
             }
         }
 
-        generatePaths(world, random, config.getBiomePathBlocks(), config.getDefaultStateProvider(), currentChunk, currentRegionKey, currentRegionStructureData.getPathGenerators(true).values(), config.getPathSize());
-        generatePaths(world, random, config.getBiomePathBlocks(), config.getDefaultStateProvider(), currentChunk, currentRegionKey, currentRegionStructureData.getPathGeneratorNeighbors().values(), config.getPathSize());
+        generatePaths(world, random, config.getBiomePathBlocks(), config.getDefaultStateProvider(), currentChunk, currentRegionKey, currentRegionStructureData.getPathGenerators(true).values(), currentRegionStructureData, config.getPathSize());
+        generatePaths(world, random, config.getBiomePathBlocks(), config.getDefaultStateProvider(), currentChunk, currentRegionKey, currentRegionStructureData.getPathGeneratorNeighbors().values(), currentRegionStructureData, config.getPathSize());
 
         return true;
     }
 
-    private void generatePaths(ISeedReader world, Random random, Map<Biome.Category, BlockStateProvider> biomeStateProviders, BlockStateProvider defaultStateProvider, long currentChunk, long currentRegionKey, Collection<IPathGenerator<?>> values, int pathSize) {
+    private void generatePaths(ISeedReader world, Random random, Map<Biome.Category, BlockStateProvider> biomeStateProviders, BlockStateProvider defaultStateProvider, long currentChunk, long currentRegionKey, Collection<IPathGenerator<?>> values, StructureData structureData, int pathSize) {
         for (IPathGenerator<?> pathGenerator : values) {
 //            if (pathGenerator.getBoundingBox().intersects(pos.getX(), pos.getZ(), pos.getX(), pos.getZ())) {
                 Long2ReferenceOpenHashMap<Set<BlockPos>> chunkNodes = pathGenerator.getNodesByRegion().get(currentRegionKey);
@@ -83,6 +102,33 @@ public class WorldPathGenerator extends Feature<PathConfig> {
                     }
                     generateLights(world, random, currentChunk, pathGenerator);
 //                }
+            }
+        }
+
+        ChunkPos pos = new ChunkPos(currentChunk);
+        if(structureData.getHarbours().contains(pos)){
+            int blockX = pos.x * 16 + 8;
+            int blockZ = pos.z * 16 + 8;
+
+            int height = world.getHeight(Heightmap.Type.WORLD_SURFACE_WG, blockX, blockZ) + 1;
+            BlockPos chestPos = new BlockPos(blockX, height, blockZ);
+
+            world.setBlock(chestPos, Blocks.BARREL.defaultBlockState(), 2);
+
+            if(structureData.getHarbours().size() > 1) {
+                int index = random.nextInt(structureData.getHarbours().size() - 1);
+                if(structureData.getHarbours().get(index).equals(pos)){
+                    index++;
+                }
+                ChunkPos connectTo = structureData.getHarbours().get(index);
+                BlockPos connectPos = new BlockPos(connectTo.x * 16 + 8, 60, connectTo.z * 16 + 8);
+
+                ItemStack map = FilledMapItem.create(world.getLevel(), connectPos.getX(), connectPos.getZ(), (byte) 2, true, true);
+                FilledMapItem.renderBiomePreviewMap(world.getLevel(), map);
+                MapData.addTargetDecoration(map, connectPos, "+", MapDecoration.Type.RED_X);
+
+                TileEntity container = world.getBlockEntity(chestPos);
+                container.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY).orElse(null).insertItem(0, map, false);
             }
         }
     }
