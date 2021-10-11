@@ -8,7 +8,6 @@ import corgitaco.modid.core.StructureData;
 import corgitaco.modid.core.StructureRegion;
 import corgitaco.modid.core.StructureRegionManager;
 import corgitaco.modid.world.path.IPathGenerator;
-import corgitaco.modid.world.path.PathfindingPathGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.command.CommandSource;

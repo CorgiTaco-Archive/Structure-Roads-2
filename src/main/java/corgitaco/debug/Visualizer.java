@@ -1,17 +1,6 @@
 package corgitaco.debug;
 
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MutableBoundingBox;
-
-import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import java.util.Random;
-
-import static corgitaco.modid.world.path.PathGenerator.*;
 
 public class Visualizer {
     /*

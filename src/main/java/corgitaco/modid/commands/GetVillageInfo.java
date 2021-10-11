@@ -10,18 +10,15 @@ import corgitaco.modid.structure.AdditionalStructureContext;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.Commands;
-import net.minecraft.command.impl.LocateCommand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.text.*;
+import net.minecraft.util.text.TextFormatting;
+import net.minecraft.util.text.TranslationTextComponent;
 import net.minecraft.util.text.event.ClickEvent;
 import net.minecraft.world.gen.feature.structure.Structure;
 import net.minecraft.world.server.ServerWorld;
-import org.graalvm.compiler.core.common.type.ArithmeticOpTable;
 
 import java.util.Collection;
-import java.util.List;
 
 public class GetVillageInfo {
     private static final int VILLAGE_CONTEXT_SEARCH_RANGE = 16;

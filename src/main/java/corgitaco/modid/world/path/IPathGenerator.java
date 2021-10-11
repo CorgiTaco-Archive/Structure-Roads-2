@@ -1,6 +1,5 @@
 package corgitaco.modid.world.path;
 
-import com.google.common.io.BaseEncoding;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import corgitaco.modid.core.Registries;

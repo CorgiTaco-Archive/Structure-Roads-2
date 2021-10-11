@@ -1,14 +1,7 @@
 package corgitaco.modid.world.path;
 
-import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
-import net.minecraft.block.BlockState;
-import net.minecraft.util.math.*;
-import net.minecraft.util.registry.Registry;
-import net.minecraft.world.gen.feature.structure.Structure;
-
-import java.util.*;
-
-import static corgitaco.modid.core.StructureRegionManager.chunkToRegionKey;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 
 public class PathGenerator /*implements IPathGenerator<Structure<?>>*/ {
     /*

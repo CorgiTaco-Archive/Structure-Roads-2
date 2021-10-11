@@ -3,7 +3,6 @@ package corgitaco.modid.structure;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongArraySet;
 import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 
 import javax.annotation.Nullable;
@@ -14,30 +13,28 @@ public class AdditionalStructureContext {
     private final String name;
     private int tier;
     private final Set<Long> connections;
+    private long lastLoadedTime;
     @Nullable private ChunkPos harbourPos;
 
     public AdditionalStructureContext(String name) {
-        this(name, 0, new LongArraySet());
+        this(name, 0, new LongArraySet(), 0L);
     }
 
     public AdditionalStructureContext(CompoundNBT nbt) {
-        this(nbt.getString("name"), nbt.getInt("tier"), new LongArraySet(nbt.getLongArray("connections")));
+        this(nbt.getString("name"), nbt.getInt("tier"), new LongArraySet(nbt.getLongArray("connections")), nbt.getLong("lastLoadedTime"));
 
         harbourPos = readChunkPos(nbt.getCompound("harbour"));
     }
 
-    public AdditionalStructureContext(String name, int tier, Set<Long> connections) {
+    public AdditionalStructureContext(String name, int tier, Set<Long> connections, long lastLoadedTime) {
         this.name = name;
         this.tier = tier;
         this.connections = connections;
+        this.lastLoadedTime = lastLoadedTime;
     }
 
     public String getName() {
         return name;
-    }
-
-    public static AdditionalStructureContext read(CompoundNBT readNBT) {
-        return new AdditionalStructureContext(readNBT.getString("name"), readNBT.getInt("tier"), new LongArraySet(readNBT.getLongArray("connections")));
     }
 
     public CompoundNBT write() {
@@ -48,6 +45,7 @@ public class AdditionalStructureContext {
         if(harbourPos != null){
             compoundNBT.put("harbour", writeChunkPos(harbourPos));
         }
+        compoundNBT.putLong("lastLoadedTime", this.lastLoadedTime);
         return compoundNBT;
     }
 
@@ -61,6 +59,14 @@ public class AdditionalStructureContext {
 
     public void setHarbourPos(ChunkPos harbourPos) {
         this.harbourPos = harbourPos;
+    }
+
+    public long getLastLoadedTime() {
+        return lastLoadedTime;
+    }
+
+    public void setLastLoadedTime(long lastLoadedTime) {
+        this.lastLoadedTime = lastLoadedTime;
     }
 
     public Set<Long> getConnections() {
